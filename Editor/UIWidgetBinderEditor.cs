@@ -1,0 +1,126 @@
+using UnityEditor;
+using UnityEngine;
+using System.IO;
+using GamePlay.Editor;
+
+namespace GamePlay
+{
+    [CustomEditor(typeof(UIWidgetBinder))]
+    public class UIWidgetBinderEditor : UnityEditor.Editor
+    {
+        // 序列化属性
+        private SerializedProperty _scriptDesc;
+        private SerializedProperty _creator;
+        private SerializedProperty _script;
+        private SerializedProperty _showRulesFoldout;
+    
+        private void OnEnable()
+        {
+            _scriptDesc = serializedObject.FindProperty("scriptDesc");
+            _creator = serializedObject.FindProperty("creator");
+            _script = serializedObject.FindProperty("script");
+            _showRulesFoldout = serializedObject.FindProperty("showRulesFoldout");
+        }
+    
+        public override void OnInspectorGUI()
+        {
+            serializedObject.Update();
+
+            var needRefresh = false;
+    
+            // 基础设置
+            EditorGUILayout.LabelField("Script Info", EditorStyles.boldLabel);
+            // 脚本描述
+            EditorGUILayout.PropertyField(_scriptDesc);
+            // 创建人
+            EditorGUILayout.PropertyField(_creator);
+            // 逻辑脚本
+            EditorGUILayout.PropertyField(_script);
+            // 折叠的组件规则
+            _showRulesFoldout.boolValue = EditorGUILayout.Foldout(_showRulesFoldout.boolValue, "Auto Component Rules", true);
+            if (_showRulesFoldout.boolValue)
+            {
+                EditorGUI.indentLevel++;
+                foreach (var rule in UIEditorUtils.ComponentRules)
+                {
+                    EditorGUILayout.LabelField($"{rule.Key.Name}: {string.Join(", ", rule.Value)}");
+                }
+                EditorGUI.indentLevel--;
+            }
+            // 生成按钮
+            if (GUILayout.Button("Update Script", GUILayout.Height(30)))
+            {
+                if (GenerateCode((UIWidgetBinder)target)) needRefresh = true;
+            }
+
+            if (needRefresh)
+            {
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+            }
+    
+            serializedObject.ApplyModifiedProperties();
+        }
+    
+        private bool GenerateCode(UIWidgetBinder binder)
+        {
+            if (!CheckScriptInfo(binder)) return false;
+
+            string newContent, path;
+            var isNew = _script.objectReferenceValue == null;
+            if (isNew)
+            {
+                path = EditorUtility.OpenFolderPanel("Select Script Path",Application.dataPath, "");
+                if (string.IsNullOrEmpty(path))
+                {
+                    EditorUtility.DisplayDialog("错误", "脚本存放目录不能为空", "确定");
+                    return false;
+                }
+
+                var scriptName = binder.gameObject.name;
+                if (scriptName.StartsWith("@"))
+                {
+                    scriptName = scriptName[1..];
+                }
+                path += $"/{scriptName}.cs";
+                // 读取模板内容
+                if (!File.Exists(UIEditorUtils.WidgetPresetScriptPath))
+                {
+                    EditorUtility.DisplayDialog("错误", "模板文件UITemplate.cs未找到", "确定");
+                    return false;
+                }
+                newContent = File.ReadAllText(UIEditorUtils.WidgetPresetScriptPath);
+                // 替换模板内容中的UITemplate为脚本名
+                newContent = newContent.Replace("UIWidgetTemplate", scriptName);
+            }
+            else
+            {
+                path = AssetDatabase.GetAssetPath(_script.objectReferenceValue);
+                newContent = File.ReadAllText(path);
+            }
+
+            newContent = UIEditorUtils.GenerateUIBindCodes(newContent, binder);
+    
+            // 写入文件
+            File.WriteAllText(path, newContent);
+            return isNew;
+        }
+    
+        private bool CheckScriptInfo(UIWidgetBinder binder)
+        {
+            // 脚本描述不能为空
+            if (string.IsNullOrEmpty(binder.scriptDesc))
+            {
+                EditorUtility.DisplayDialog("错误", "必须拥有脚本描述", "确定");
+                return false;
+            }
+            // 创建人不能为空
+            if (string.IsNullOrEmpty(binder.creator))
+            {
+                EditorUtility.DisplayDialog("错误", "必须拥有创建人", "确定");
+                return false;
+            }
+            return true;
+        }
+    }
+}
