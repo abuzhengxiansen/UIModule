@@ -1,0 +1,10 @@
+{
+  "name": "com.yframework.uimodule",
+  "version": "1.0.0",
+  "displayName": "YFramework UI Module",
+  "description": "a ui module for unity projects",
+  "unity": "2022.3",
+  "dependencies": {
+    "com.lite.litequark": "https://github.com/UnSkyToo/LiteQuark.git#LiteQuark"
+  }
+}

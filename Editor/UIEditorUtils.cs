@@ -15,18 +15,13 @@ namespace GamePlay.Editor
 {
     public static class UIEditorUtils
     {
-        // view config script path
-        private const string UIConfigsPath = "Assets/GamePlay/Config/UIConfigs.cs";
-        // view script template
-        public const string ViewPresetScriptPath = "Assets/GamePlay/Editor/UI/UIViewTemplate.txt";
-        // widget script template
-        public const string WidgetPresetScriptPath = "Assets/GamePlay/Editor/UI/UIWidgetTemplate.txt";
-        // view prefab template
-        public const string ViewPrefabTemplatePath = "Assets/GamePlay/Editor/UI/UITemplate.prefab";
-        // prefab folder path
-        public const string PrefabFolderPath = "Assets/GamePlay";
-        // preset folder path
-        public const string PresetFolderPath = "Assets/Editor/PresetTemplate";
+        // 通过配置文件获取路径
+        private static string UIConfigsPath => UIModuleConfig.Instance?.uiConfigsPath ?? "Assets/GamePlay/Config/UIConfigs.cs";
+        public static string ViewPresetScriptPath => UIModuleConfig.Instance?.viewPresetScriptPath ?? "Assets/GamePlay/Editor/UI/UIViewTemplate.txt";
+        public static string WidgetPresetScriptPath => UIModuleConfig.Instance?.widgetPresetScriptPath ?? "Assets/GamePlay/Editor/UI/UIWidgetTemplate.txt";
+        public static string ViewPrefabTemplatePath => UIModuleConfig.Instance?.viewPrefabTemplatePath ?? "Assets/GamePlay/Editor/UI/UITemplate.prefab";
+        public static string PrefabFolderPath => UIModuleConfig.Instance?.prefabFolderPath ?? "Assets/GamePlay";
+        public static string PresetFolderPath => UIModuleConfig.Instance?.presetFolderPath ?? "Assets/Editor/PresetTemplate";
         
         #region 通用
 
