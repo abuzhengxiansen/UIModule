@@ -399,7 +399,7 @@ namespace GamePlay.Editor
         /// <summary>
         /// 生成UI界面prefab预制体
         /// </summary>
-        [MenuItem("Assets/Create/Prefab from Template", false, 21)]
+        [MenuItem("Assets/Create/UIModule View Prefab", false, 22)]
         private static void CreateQuickPrefabMenuItem()
         {
             if (Selection.activeObject == null || !AssetDatabase.IsValidFolder(AssetDatabase.GetAssetPath(Selection.activeObject)))
@@ -473,7 +473,7 @@ namespace GamePlay.Editor
         /// <summary>
         /// 生成UIModuleConfig配置文件
         /// </summary>
-        [MenuItem("Tools/UI Module Config")]
+        [MenuItem("Assets/Create/UIModule Config", false, 21)]
         public static void CreateConfig()
         {
             var configPath = "Assets/Resources/UIModuleConfig.asset";
