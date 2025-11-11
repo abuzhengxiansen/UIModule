@@ -90,12 +90,13 @@ namespace GamePlay
                 }
                 path += $"/{binder.gameObject.name}.cs";
                 // 读取模板内容
-                if (!File.Exists(UIEditorUtils.ViewPresetScriptPath))
+                if (UIEditorUtils.ViewPresetScriptPath == null)
                 {
                     EditorUtility.DisplayDialog("错误", "模板文件UITemplate.cs未找到", "确定");
                     return;
                 }
-                newContent = File.ReadAllText(UIEditorUtils.ViewPresetScriptPath);
+
+                newContent = UIEditorUtils.ViewPresetScriptPath.text;
                 // 替换模板内容中的UITemplate为脚本名
                 newContent = newContent.Replace("UIViewTemplate", binder.gameObject.name);
             }

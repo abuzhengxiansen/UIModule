@@ -84,12 +84,13 @@ namespace GamePlay
                 }
                 path += $"/{scriptName}.cs";
                 // 读取模板内容
-                if (!File.Exists(UIEditorUtils.WidgetPresetScriptPath))
+                if (UIEditorUtils.WidgetPresetScriptPath == null)
                 {
                     EditorUtility.DisplayDialog("错误", "模板文件UITemplate.cs未找到", "确定");
                     return false;
                 }
-                newContent = File.ReadAllText(UIEditorUtils.WidgetPresetScriptPath);
+
+                newContent = UIEditorUtils.WidgetPresetScriptPath.text;
                 // 替换模板内容中的UITemplate为脚本名
                 newContent = newContent.Replace("UIWidgetTemplate", scriptName);
             }

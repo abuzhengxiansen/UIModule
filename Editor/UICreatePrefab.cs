@@ -14,7 +14,7 @@ public class UICreatePrefab : EditorWindow
         }
 
         // 加载默认模板
-        var template = AssetDatabase.LoadAssetAtPath<GameObject>(UIEditorUtils.ViewPrefabTemplatePath);
+        var template = UIEditorUtils.ViewPrefabTemplatePath;
         if (template == null)
         {
             EditorUtility.DisplayDialog("错误", $"没有找到模板prefab在路径：{UIEditorUtils.ViewPrefabTemplatePath}", "确定");

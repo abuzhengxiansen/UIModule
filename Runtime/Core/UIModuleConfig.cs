@@ -12,14 +12,14 @@ namespace GamePlay
         public string uiConfigsPath = "Assets/GamePlay/Config/UIConfigs.cs";
         
         [Tooltip("View脚本模板路径")]
-        public string viewPresetScriptPath = "Assets/GamePlay/Editor/UI/UIViewTemplate.txt";
+        public TextAsset viewPresetScriptPath;
         
         [Tooltip("Widget脚本模板路径")]
-        public string widgetPresetScriptPath = "Assets/GamePlay/Editor/UI/UIWidgetTemplate.txt";
+        public TextAsset widgetPresetScriptPath;
         
         [Header("预制体路径配置")]
         [Tooltip("View预制体模板路径")]
-        public string viewPrefabTemplatePath = "Assets/GamePlay/Editor/UI/UITemplate.prefab";
+        public GameObject viewPrefabTemplatePath;
         
         [Tooltip("预制体文件夹路径")]
         public string prefabFolderPath = "Assets/GamePlay";

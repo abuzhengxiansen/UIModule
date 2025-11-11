@@ -17,9 +17,9 @@ namespace GamePlay.Editor
     {
         // 通过配置文件获取路径
         private static string UIConfigsPath => UIModuleConfig.Instance?.uiConfigsPath ?? "Assets/GamePlay/Config/UIConfigs.cs";
-        public static string ViewPresetScriptPath => UIModuleConfig.Instance?.viewPresetScriptPath ?? "Assets/GamePlay/Editor/UI/UIViewTemplate.txt";
-        public static string WidgetPresetScriptPath => UIModuleConfig.Instance?.widgetPresetScriptPath ?? "Assets/GamePlay/Editor/UI/UIWidgetTemplate.txt";
-        public static string ViewPrefabTemplatePath => UIModuleConfig.Instance?.viewPrefabTemplatePath ?? "Assets/GamePlay/Editor/UI/UITemplate.prefab";
+        public static TextAsset ViewPresetScriptPath => UIModuleConfig.Instance?.viewPresetScriptPath;
+        public static TextAsset WidgetPresetScriptPath => UIModuleConfig.Instance?.widgetPresetScriptPath;
+        public static GameObject ViewPrefabTemplatePath => UIModuleConfig.Instance?.viewPrefabTemplatePath;
         public static string PrefabFolderPath => UIModuleConfig.Instance?.prefabFolderPath ?? "Assets/GamePlay";
         public static string PresetFolderPath => UIModuleConfig.Instance?.presetFolderPath ?? "Assets/Editor/PresetTemplate";
         
