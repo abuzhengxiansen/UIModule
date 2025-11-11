@@ -4,6 +4,7 @@ using System.Linq;
 using Cysharp.Threading.Tasks;
 using LiteQuark.Runtime;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace GamePlay
 {
@@ -20,31 +21,55 @@ namespace GamePlay
         private const int LayerOrderSpace = 1000;
         public Camera UiCamera { get; private set; }
         private readonly List<UILayer> _uiLayers = new();
-        private Transform _root;
+        private UICanvas _root;
         private readonly Dictionary<LayerType, LinkedList<BaseView>> _uiViewList = new();
         private readonly HashSet<BaseView> _uiViewCaches = new();
         private readonly Queue<BaseView> _pendingDisposeViewQueue = new ();
         private Vector2 _adaptAnchorMin = Vector2.zero;
         private Vector2 _adaptAnchorMax = Vector2.one;
         
-        public Action<string> AudioPlay { get; private set; }
-        public Action<string> LogWarn { get; private set; }
-        public Action<string> LogError { get; private set; }
+        /// <summary>
+        /// 获取UI模块配置
+        /// </summary>
+        public UIModuleConfig Config => _root?.Config;
+
+        #region 外部注册接口
+
+        private Action<string> _audioPlay;
+        private Action<string> _logWarn;
+        private Action<string> _logError;
         
         public void SetAudioPlay(Action<string> action)
         {
-            AudioPlay = action;
+            _audioPlay = action;
+        }
+        
+        public void PlayAudio(string audioPath)
+        {
+            _audioPlay?.Invoke(audioPath);
         }
         
         public void SetLogWarn(Action<string> action)
         {
-            LogWarn = action;
+            _logWarn = action;
+        }
+        
+        public void LogWarn(string message)
+        {
+            _logWarn?.Invoke(message);
         }
         
         public void SetLogError(Action<string> action)
         {
-            LogError = action;
+            _logError = action;
         }
+        
+        public void LogError(string message)
+        {
+            _logError?.Invoke(message);
+        }
+
+        #endregion
 
         #region 内部
         
@@ -96,7 +121,7 @@ namespace GamePlay
                 LayerOrder = order
             };
             var layerTransform = new GameObject(layer.LayerType.ToString(), typeof(RectTransform)).transform;
-            layerTransform.SetParent(_root);
+            layerTransform.SetParent(_root.transform);
             layer.LayerTransform = layerTransform;
                     
             // 调整RectTransform的位置和大小
@@ -146,7 +171,7 @@ namespace GamePlay
             {
                 if (!uiObj)
                 {
-                    LogWarn?.Invoke($"OpenUIAsync failed: {config.Type.Name} prefab not found at {config.Path}");
+                    LogWarn($"OpenUIAsync failed: {config.Type.Name} prefab not found at {config.Path}");
                     return;
                 }
                 
@@ -290,7 +315,7 @@ namespace GamePlay
             }
             else if (topView != null && topView == uiView)
             {
-                LogWarn?.Invoke($"{config.Name} is already open in the top, no need to reopen");
+                LogWarn($"{config.Name} is already open in the top, no need to reopen");
             }
             else
             {
@@ -417,26 +442,7 @@ namespace GamePlay
         /// </summary>
         public UniTask<bool> Initialize()
         {
-            var config = UIModuleConfig.Instance;
-            if (!string.IsNullOrEmpty(config.uiRootPath))
-            {
-                var rootObj = GameObject.Find(config.uiRootPath);
-                if (rootObj != null)
-                {
-                    _root = rootObj.transform;
-                }
-                else
-                {
-                    LogError?.Invoke($"UI Root not found at path: {config.uiRootPath}");
-                    return UniTask.FromResult(false);
-                }
-            }
-            else
-            {
-                LogError?.Invoke("UI Root is not set. Please set it in UIModuleSettings or pass it to Initialize method.");
-                return UniTask.FromResult(false);
-            }
-            
+            _root = Object.FindObjectOfType<UICanvas>();
             var canvas = _root.GetComponent<Canvas>();
             if (canvas != null)
             {

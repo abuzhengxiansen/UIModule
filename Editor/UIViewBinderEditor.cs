@@ -214,10 +214,11 @@ namespace GamePlay
         private static void UpdateOrAddUConfig(UIViewBinder viewBinder)
         {
             List<string> allLines = null;
-            var configPath = UIModuleConfig.Instance?.uiConfigsPath;
+            var uiCanvas = UnityEngine.Object.FindObjectOfType<UICanvas>();
+            var configPath = uiCanvas?.Config?.uiConfigsPath;
             if (string.IsNullOrEmpty(configPath))
             {
-                Debug.LogWarning("UIEditorUtils UIConfigsPath is not set in UIModuleConfig.");
+                Debug.LogWarning("UIEditorUtils UIConfigsPath is not set in UICanvas Config.");
                 return;
             }
             

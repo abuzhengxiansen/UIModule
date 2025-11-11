@@ -99,10 +99,12 @@ namespace UnityEngine.UI
 
             if (sound == DefaultClickSound)
             {
-                sound = UIModuleConfig.Instance.defaultClickAudio;
+                var uiModule = LiteRuntime.Get<UIModule>();
+                sound = uiModule?.Config?.defaultClickAudio;
+                if (string.IsNullOrEmpty(sound)) return;
             }
             
-            LiteRuntime.Get<UIModule>().AudioPlay?.Invoke(sound);
+            LiteRuntime.Get<UIModule>()?.PlayAudio(sound);
         }
         
         public enum ClickModes
@@ -121,7 +123,7 @@ namespace UnityEngine.UI
         {
             if (clickMode != ClickModes.Single)
             {
-                LiteRuntime.Get<UIModule>().LogError?.Invoke("UIButton ClickType is not Single.");
+                LiteRuntime.Get<UIModule>()?.LogError("UIButton ClickType is not Single.");
                 return;
             }
             _onClick = action;
@@ -131,7 +133,7 @@ namespace UnityEngine.UI
         {
             if (clickMode != ClickModes.Double)
             {
-                LiteRuntime.Get<UIModule>().LogError?.Invoke("UIButton ClickType is not Double.");
+                LiteRuntime.Get<UIModule>()?.LogError("UIButton ClickType is not Double.");
                 return;
             }
             _onDoubleClick = action;

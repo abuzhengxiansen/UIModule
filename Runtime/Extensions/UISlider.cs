@@ -36,12 +36,12 @@ namespace UnityEngine.UI
         {
             if (fill == null)
             {
-                LiteRuntime.Get<UIModule>().LogError?.Invoke($"UISlider {name} Fill is null");
+                LiteRuntime.Get<UIModule>()?.LogError($"UISlider {name} Fill is null");
                 return;
             }
             if (fill.sprite != null && fill.type != Image.Type.Filled)
             {
-                LiteRuntime.Get<UIModule>().LogError?.Invoke($"UISlider {name} Fill image type need be Filled");
+                LiteRuntime.Get<UIModule>()?.LogError($"UISlider {name} Fill image type need be Filled");
                 return;
             }
             fill.fillAmount = Progress;

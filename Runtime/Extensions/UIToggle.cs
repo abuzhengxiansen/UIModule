@@ -79,10 +79,12 @@ namespace UnityEngine.UI
             
             if (sound == DefaultClickSound)
             {
-                sound = UIModuleConfig.Instance.defaultClickAudio;
+                var uiModule = LiteRuntime.Get<UIModule>();
+                sound = uiModule?.Config?.defaultClickAudio;
+                if (string.IsNullOrEmpty(sound)) return;
             }
             
-            LiteRuntime.Get<UIModule>().AudioPlay?.Invoke(sound);
+            LiteRuntime.Get<UIModule>()?.PlayAudio(sound);
         }
         
         public void Rebuild(CanvasUpdate executing)
@@ -118,7 +120,7 @@ namespace UnityEngine.UI
             if (toggleGroup != null)
             {
                 // 有group由group统一处理
-                LiteRuntime.Get<UIModule>().LogError?.Invoke("UIToggle can't set change event when it's in a group, please use group SetChangeEvent instead.");
+                LiteRuntime.Get<UIModule>()?.LogError("UIToggle can't set change event when it's in a group, please use group SetChangeEvent instead.");
                 return;
             }
             
@@ -131,7 +133,7 @@ namespace UnityEngine.UI
             {
                 if (group == null)
                 {
-                    LiteRuntime.Get<UIModule>().LogError?.Invoke("UIToggle can't set toggle when it's in a group, please use group SetToggle instead.");
+                    LiteRuntime.Get<UIModule>()?.LogError("UIToggle can't set toggle when it's in a group, please use group SetToggle instead.");
                 }
                 return;
             }

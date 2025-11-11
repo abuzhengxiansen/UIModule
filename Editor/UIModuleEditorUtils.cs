@@ -15,9 +15,15 @@ namespace GamePlay.Editor
 {
     public static class UIModuleEditorUtils
     {
-        // 通过配置文件获取路径
-        private static string UIConfigsPath => UIModuleConfig.Instance?.uiConfigsPath;
-        public static string PresetFolderPath => UIModuleConfig.Instance?.presetFolderPath;
+        // 从场景中的UICanvas获取配置
+        private static UIModuleConfig GetConfig()
+        {
+            var uiCanvas = Object.FindObjectOfType<UICanvas>();
+            return uiCanvas?.Config;
+        }
+        
+        private static string UIConfigsPath => GetConfig()?.uiConfigsPath;
+        public static string PresetFolderPath => GetConfig()?.presetFolderPath;
         
         #region 通用
 
@@ -399,7 +405,7 @@ namespace GamePlay.Editor
         /// <summary>
         /// 生成UI界面prefab预制体
         /// </summary>
-        [MenuItem("Assets/Create/UIModule View Prefab", false, 22)]
+        [MenuItem("Assets/Create/UIModule View Prefab", false, 21)]
         private static void CreateQuickPrefabMenuItem()
         {
             if (Selection.activeObject == null || !AssetDatabase.IsValidFolder(AssetDatabase.GetAssetPath(Selection.activeObject)))
@@ -473,53 +479,32 @@ namespace GamePlay.Editor
         /// <summary>
         /// 生成UIModuleConfig配置文件
         /// </summary>
-        [MenuItem("Assets/Create/UIModule Config", false, 21)]
-        public static void CreateConfig()
+        [MenuItem("GameObject/FrameworkUI/UICanvas", false, 1)]
+        public static void CreateUICanvas()
         {
-            var configPath = "Assets/Resources/UIModuleConfig.asset";
-            // 检查文件是否已存在
-            if (File.Exists(configPath))
-            {
-                EditorUtility.DisplayDialog(
-                    "文件已存在",
-                    $"UI模块配置文件已存在于: {configPath}\n请直接在Project窗口中编辑该文件。",
-                    "确定");
-                
-                // 选中并高亮显示现有文件
-                var existingConfig = AssetDatabase.LoadAssetAtPath<UIModuleConfig>(configPath);
-                if (existingConfig != null)
-                {
-                    Selection.activeObject = existingConfig;
-                    EditorGUIUtility.PingObject(existingConfig);
-                }
-                return;
-            }
+            // 创建UICanvas GameObject
+            var uiCanvasGo = new GameObject("UICanvas");
             
-            // 确保Resources文件夹存在
-            if (!AssetDatabase.IsValidFolder("Assets/Resources"))
-            {
-                // 创建Resources文件夹
-                var parentFolder = Path.GetDirectoryName("Assets/Resources");
-                if (!Directory.Exists(parentFolder))
-                {
-                    Directory.CreateDirectory(parentFolder);
-                }
-                AssetDatabase.CreateFolder("Assets", "Resources");
-            }
+            // 添加Canvas组件并设置为Screen Space - Camera
+            var canvas = uiCanvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
             
-            // 创建配置实例
-            var config = ScriptableObject.CreateInstance<UIModuleConfig>();
+            // 添加Canvas Scaler组件并配置
+            var canvasScaler = uiCanvasGo.AddComponent<CanvasScaler>();
+            canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            canvasScaler.referenceResolution = new Vector2(1080, 1920);
+            canvasScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            canvasScaler.matchWidthOrHeight = 0f;
             
-            // 保存为asset文件
-            AssetDatabase.CreateAsset(config, configPath);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
+            // 添加Graphic Raycaster组件
+            uiCanvasGo.AddComponent<GraphicRaycaster>();
             
-            // 选中并高亮显示新创建的文件
-            Selection.activeObject = config;
-            EditorGUIUtility.PingObject(config);
+            // 添加UICanvas组件
+            uiCanvasGo.AddComponent<UICanvas>();
             
-            Debug.Log($"UI模块配置文件创建成功: {configPath}");
+            // 选中新创建的GameObject
+            Selection.activeGameObject = uiCanvasGo;
+            EditorGUIUtility.PingObject(uiCanvasGo);
         }
     }
 }
