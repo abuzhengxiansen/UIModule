@@ -79,7 +79,7 @@ namespace UnityEngine.UI
             
             if (sound == DefaultClickSound)
             {
-                sound = UIModuleConfig.Instance.defalutClickAudio;
+                sound = UIModuleConfig.Instance.defaultClickAudio;
             }
             
             LiteRuntime.Get<UIModule>().AudioPlay?.Invoke(sound);
