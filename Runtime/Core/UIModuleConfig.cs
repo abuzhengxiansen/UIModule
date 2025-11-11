@@ -9,24 +9,11 @@ namespace GamePlay
     {
         [Header("脚本路径配置")]
         [Tooltip("UI配置脚本路径")]
-        public string uiConfigsPath = "Assets/GamePlay/Config/UIConfigs.cs";
-        
-        [Tooltip("View脚本模板路径")]
-        public TextAsset viewPresetScriptPath;
-        
-        [Tooltip("Widget脚本模板路径")]
-        public TextAsset widgetPresetScriptPath;
-        
-        [Header("预制体路径配置")]
-        [Tooltip("View预制体模板路径")]
-        public GameObject viewPrefabTemplatePath;
-        
-        [Tooltip("预制体文件夹路径")]
-        public string prefabFolderPath = "Assets/GamePlay";
+        public string uiConfigsPath;
         
         [Header("预设配置")]
         [Tooltip("预设文件夹路径")]
-        public string presetFolderPath = "Assets/Editor/PresetTemplate";
+        public string presetFolderPath;
         
         [Header("UI根节点配置")]
         [Tooltip("UI根节点在场景中的路径")]
@@ -34,7 +21,7 @@ namespace GamePlay
         
         [Header("按钮点击音效资源默认播放参数")]
         [Tooltip("自身传入的播放回调对应的参数")]
-        public string defalutClickAudio = "Audios/sd_btn_clock.wav";
+        public string defaultClickAudio = "Audios/sd_btn_clock.wav";
         
         private static UIModuleConfig _instance;
         

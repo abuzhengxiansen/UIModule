@@ -13,15 +13,11 @@ using Object = UnityEngine.Object;
 
 namespace GamePlay.Editor
 {
-    public static class UIEditorUtils
+    public static class UIModuleEditorUtils
     {
         // 通过配置文件获取路径
-        private static string UIConfigsPath => UIModuleConfig.Instance?.uiConfigsPath ?? "Assets/GamePlay/Config/UIConfigs.cs";
-        public static TextAsset ViewPresetScriptPath => UIModuleConfig.Instance?.viewPresetScriptPath;
-        public static TextAsset WidgetPresetScriptPath => UIModuleConfig.Instance?.widgetPresetScriptPath;
-        public static GameObject ViewPrefabTemplatePath => UIModuleConfig.Instance?.viewPrefabTemplatePath;
-        public static string PrefabFolderPath => UIModuleConfig.Instance?.prefabFolderPath ?? "Assets/GamePlay";
-        public static string PresetFolderPath => UIModuleConfig.Instance?.presetFolderPath ?? "Assets/Editor/PresetTemplate";
+        private static string UIConfigsPath => UIModuleConfig.Instance?.uiConfigsPath;
+        public static string PresetFolderPath => UIModuleConfig.Instance?.presetFolderPath;
         
         #region 通用
 
@@ -501,5 +497,131 @@ namespace GamePlay
         }
         
         #endregion
+        
+        /// <summary>
+        /// 生成UI界面prefab预制体
+        /// </summary>
+        [MenuItem("Assets/Create/Prefab from Template", false, 21)]
+        private static void CreateQuickPrefabMenuItem()
+        {
+            if (Selection.activeObject == null || !AssetDatabase.IsValidFolder(AssetDatabase.GetAssetPath(Selection.activeObject)))
+            {
+                EditorUtility.DisplayDialog("错误", "需要用鼠标选中创建prefab所属的文件夹", "确定");
+                return;
+            }
+
+            var targetFolder = AssetDatabase.GetAssetPath(Selection.activeObject);
+            // 只能选择文件夹
+            if (!AssetDatabase.IsValidFolder(targetFolder))
+            {
+                EditorUtility.DisplayDialog("错误", "只能选择文件夹", "确定");
+                return;
+            }
+        
+            if (!targetFolder.EndsWith("/")) targetFolder += "/";
+    
+            var prefabPath = AssetDatabase.GenerateUniqueAssetPath(targetFolder + "UINew.prefab");
+    
+            // 创建根节点GameObject
+            var rootGo = new GameObject("UINew");
+            
+            // 添加Canvas组件
+            var canvas = rootGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            
+            // 添加GraphicRaycaster组件
+            rootGo.AddComponent<GraphicRaycaster>();
+            
+            // 添加UIViewBinder组件
+            rootGo.AddComponent<UIViewBinder>();
+            
+            // 创建Root子节点
+            var rootChild = new GameObject("Root");
+            rootChild.transform.SetParent(rootGo.transform, false);
+            var rootRect = rootChild.AddComponent<RectTransform>();
+            rootChild.AddComponent<CanvasGroup>();
+            
+            // 设置Root为Stretch布局
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+            
+            // 创建FullRoot子节点
+            var fullRootChild = new GameObject("FullRoot");
+            fullRootChild.transform.SetParent(rootGo.transform, false);
+            var fullRootRect = fullRootChild.AddComponent<RectTransform>();
+            fullRootChild.AddComponent<CanvasGroup>();
+            
+            // 设置FullRoot为Stretch布局
+            fullRootRect.anchorMin = Vector2.zero;
+            fullRootRect.anchorMax = Vector2.one;
+            fullRootRect.offsetMin = Vector2.zero;
+            fullRootRect.offsetMax = Vector2.zero;
+            
+            // 保存为Prefab
+            var newPrefab = PrefabUtility.SaveAsPrefabAsset(rootGo, prefabPath);
+        
+            Object.DestroyImmediate(rootGo);
+    
+            AssetDatabase.Refresh();
+            // 选中并高亮新创建的Prefab
+            Selection.activeObject = newPrefab;
+            EditorGUIUtility.PingObject(newPrefab);
+            // 打开Prefab编辑界面
+            AssetDatabase.OpenAsset(newPrefab);
+        }
+        
+        /// <summary>
+        /// 生成UIModuleConfig配置文件
+        /// </summary>
+        [MenuItem("Tools/UI Module Config")]
+        public static void CreateConfig()
+        {
+            var configPath = "Assets/Resources/UIModuleConfig.asset";
+            // 检查文件是否已存在
+            if (File.Exists(configPath))
+            {
+                EditorUtility.DisplayDialog(
+                    "文件已存在",
+                    $"UI模块配置文件已存在于: {configPath}\n请直接在Project窗口中编辑该文件。",
+                    "确定");
+                
+                // 选中并高亮显示现有文件
+                var existingConfig = AssetDatabase.LoadAssetAtPath<UIModuleConfig>(configPath);
+                if (existingConfig != null)
+                {
+                    Selection.activeObject = existingConfig;
+                    EditorGUIUtility.PingObject(existingConfig);
+                }
+                return;
+            }
+            
+            // 确保Resources文件夹存在
+            if (!AssetDatabase.IsValidFolder("Assets/Resources"))
+            {
+                // 创建Resources文件夹
+                var parentFolder = Path.GetDirectoryName("Assets/Resources");
+                if (!Directory.Exists(parentFolder))
+                {
+                    Directory.CreateDirectory(parentFolder);
+                }
+                AssetDatabase.CreateFolder("Assets", "Resources");
+            }
+            
+            // 创建配置实例
+            var config = ScriptableObject.CreateInstance<UIModuleConfig>();
+            
+            // 保存为asset文件
+            AssetDatabase.CreateAsset(config, configPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            
+            // 选中并高亮显示新创建的文件
+            Selection.activeObject = config;
+            EditorGUIUtility.PingObject(config);
+            
+            Debug.Log($"UI模块配置文件创建成功: {configPath}");
+        }
     }
 }

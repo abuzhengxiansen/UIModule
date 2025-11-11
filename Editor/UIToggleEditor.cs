@@ -93,7 +93,7 @@ namespace UnityEditor.UI
             // Add necessary components
             var rectTransform = toggle.AddComponent<RectTransform>();
             rectTransform.anchoredPosition = Vector2.zero;
-            UIEditorUtils.ApplyPreset(toggle.AddComponent<UIToggle>(), "UIToggle");
+            UIModuleEditorUtils.ApplyPreset(toggle.AddComponent<UIToggle>(), "UIToggle");
 
             // Create Background
             var background = new GameObject("Background");
@@ -120,7 +120,7 @@ namespace UnityEditor.UI
             var textRectTransform = textObj.AddComponent<RectTransform>();
             textRectTransform.SetParent(toggle.transform, false);
             var textMeshPro = textObj.AddComponent<TextMeshProUGUI>();
-            UIEditorUtils.ApplyPreset(textMeshPro, "TextMeshProUGUI");
+            UIModuleEditorUtils.ApplyPreset(textMeshPro, "TextMeshProUGUI");
             
             // Assign Background and Checkmark to UIToggle
             var uiToggle = toggle.GetComponent<UIToggle>();

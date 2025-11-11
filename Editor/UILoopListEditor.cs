@@ -67,7 +67,7 @@ namespace UnityEngine.UI
             // Add necessary components
             loopList.AddComponent<RectTransform>();
             var list = loopList.AddComponent<UILoopList>();
-            UIEditorUtils.ApplyPreset(list, "UILoopList");
+            UIModuleEditorUtils.ApplyPreset(list, "UILoopList");
             
             var image = loopList.AddComponent<Empty4Raycast>();
             var mask = loopList.AddComponent<RectMask2D>();

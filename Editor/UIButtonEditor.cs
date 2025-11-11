@@ -93,13 +93,13 @@ namespace UnityEngine.UI
             var rectTransform = btn.AddComponent<RectTransform>();
             rectTransform.anchoredPosition = Vector2.zero;
             var image = btn.AddComponent<Image>();
-            UIEditorUtils.ApplyPreset(btn.AddComponent<UIButton>(), "UIButton");
+            UIModuleEditorUtils.ApplyPreset(btn.AddComponent<UIButton>(), "UIButton");
 
             // 创建TMP文本
             var textObj = new GameObject("Text (TMP)");
             Undo.RegisterCreatedObjectUndo(textObj, "Create TMP Text");
             var textRectTransform = textObj.AddComponent<RectTransform>();
-            UIEditorUtils.ApplyPreset(textObj.AddComponent<TMPro.TextMeshProUGUI>(), "TextMeshProUGUI");
+            UIModuleEditorUtils.ApplyPreset(textObj.AddComponent<TMPro.TextMeshProUGUI>(), "TextMeshProUGUI");
             GameObjectUtility.SetParentAndAlign(textObj, btn);
 
             // 标记场景为已修改

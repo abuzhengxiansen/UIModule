@@ -115,7 +115,7 @@ namespace UnityEngine.UI
             var rectTransform = drag.AddComponent<RectTransform>();
             rectTransform.anchoredPosition = Vector2.zero;
             drag.AddComponent<Empty4Raycast>();
-            UIEditorUtils.ApplyPreset(drag.AddComponent<UIDrag>(), "UIDrag");
+            UIModuleEditorUtils.ApplyPreset(drag.AddComponent<UIDrag>(), "UIDrag");
 
             // 标记场景为已修改
             EditorSceneManager.MarkSceneDirty(drag.scene);

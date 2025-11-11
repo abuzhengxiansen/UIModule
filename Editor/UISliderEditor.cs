@@ -94,7 +94,7 @@ namespace UnityEngine.UI
             var image = slider.AddComponent<Image>();
             var sliderComp = slider.AddComponent<UISlider>();
             sliderComp.interactable = false;
-            UIEditorUtils.ApplyPreset(sliderComp, "UISlider");
+            UIModuleEditorUtils.ApplyPreset(sliderComp, "UISlider");
 
             var fill = new GameObject("Fill");
             Undo.RegisterCreatedObjectUndo(fill, "Create Fill");
@@ -116,7 +116,7 @@ namespace UnityEngine.UI
             Undo.RegisterCreatedObjectUndo(value, "Create TMP Text");
             value.AddComponent<RectTransform>();
             var text = value.AddComponent<TextMeshProUGUI>();
-            UIEditorUtils.ApplyPreset(text, "TextMeshProUGUI");
+            UIModuleEditorUtils.ApplyPreset(text, "TextMeshProUGUI");
             GameObjectUtility.SetParentAndAlign(value, slider);
             
             var uiSlider = slider.GetComponent<UISlider>();
