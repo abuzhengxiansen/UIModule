@@ -13,7 +13,6 @@ namespace UnityEditor.UI
         private SerializedProperty _clickSound;
         private SerializedProperty _clickDisableSound;
         private SerializedProperty _clickCooldownTime;
-        private SerializedProperty _clickEffectMode;
         private SerializedProperty _showDetailSetting;
         private SerializedProperty _toggleGroup;
         private SerializedProperty _checkMark;
@@ -28,17 +27,11 @@ namespace UnityEditor.UI
             _clickSound = serializedObject.FindProperty("clickSound");
             _clickDisableSound = serializedObject.FindProperty("clickDisableSound");
             _clickCooldownTime = serializedObject.FindProperty("clickCooldownTime");
-            _clickEffectMode = serializedObject.FindProperty("clickEffectMode");
             _showDetailSetting = serializedObject.FindProperty("showDetailSetting");
             _isOn = serializedObject.FindProperty("isOn");
             _toggleGroup = serializedObject.FindProperty("toggleGroup");
             _checkMark = serializedObject.FindProperty("checkMark");
             _text = serializedObject.FindProperty("text");
-
-            if (_clickEffectMode.enumValueIndex != 0 && _target.GetComponent<ClickEffectSingle>() == null)
-            {
-                ApplyClickEffectMode();
-            }
         }
 
         public override void OnInspectorGUI()
@@ -62,14 +55,6 @@ namespace UnityEditor.UI
             EditorGUILayout.PropertyField(_text);
             EditorGUILayout.PropertyField(_checkMark, new GUIContent("Check Mark", "开关时显隐的节点"));
             EditorGUILayout.PropertyField(_toggleGroup, new GUIContent("Toggle Group", "所属的Toggle组"));
-
-            var clickEffectMode =
-                EditorGUILayout.Popup("Click Effect Mode", _clickEffectMode.enumValueIndex, _clickEffectMode.enumDisplayNames);
-            if (_clickEffectMode.enumValueIndex != clickEffectMode)
-            {
-                _clickEffectMode.enumValueIndex = clickEffectMode;
-                ApplyClickEffectMode();
-            }
             
             _showDetailSetting.boolValue = EditorGUILayout.Foldout(_showDetailSetting.boolValue, "Other Settings");
             if (_showDetailSetting.boolValue)
@@ -82,18 +67,6 @@ namespace UnityEditor.UI
             }
             
             serializedObject.ApplyModifiedProperties();
-        }
-
-        private void ApplyClickEffectMode()
-        {
-            DestroyImmediate(_target.GetComponent(typeof(ClickEffectSingle)));
-
-            var effectComp = (ClickEffectModes)_clickEffectMode.enumValueIndex switch
-            {
-                ClickEffectModes.Jelly => _target.gameObject.AddComponent<ClickEffectJelly>(),
-                _ => null
-            };
-            effectComp?.SetSelectable(_target);
         }
 
         [MenuItem("GameObject/FrameworkUI/UIToggle-TMP", false, 6)]

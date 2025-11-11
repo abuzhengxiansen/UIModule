@@ -1,4 +1,6 @@
 using System;
+using GamePlay;
+using LiteQuark.Runtime;
 using UnityEngine.EventSystems;
 
 namespace UnityEngine.UI
@@ -6,23 +8,21 @@ namespace UnityEngine.UI
     public sealed class UIToggle : Selectable, IPointerClickHandler, ICanvasElement
     {
         private static float _lastClickEffectTime;
+        private const string DefaultClickSound = "Default";
 
         #region 内部
         
         // 组件自定义
-        public string clickSound = "sd_btn_clock";
-        public string clickDisableSound = "sd_btn_clock";
+        public string clickSound = DefaultClickSound;
+        public string clickDisableSound = DefaultClickSound;
         public float clickCooldownTime = 0.1f;
         public UIToggleGroup toggleGroup;
         public CanvasGroup checkMark;
         public TMPro.TextMeshProUGUI text;
-        public ClickEffectModes ClickEffectModes => clickEffectMode;
         public bool IsOn => isOn;
         
         [SerializeField]
         private bool showDetailSetting;
-        [SerializeField]
-        private ClickEffectModes clickEffectMode = ClickEffectModes.None;
         [SerializeField]
         private bool isOn;
 
@@ -76,7 +76,13 @@ namespace UnityEngine.UI
         private void PlayAudio(string sound)
         {
             if (string.IsNullOrEmpty(sound)) return;
-            GamePlay.AudioUtils.PlaySound($"Audios/{sound}.wav");
+            
+            if (sound == DefaultClickSound)
+            {
+                sound = UIModuleConfig.Instance.defalutClickAudio;
+            }
+            
+            LiteRuntime.Get<UIModule>().AudioPlay?.Invoke(sound);
         }
         
         public void Rebuild(CanvasUpdate executing)
@@ -112,7 +118,7 @@ namespace UnityEngine.UI
             if (toggleGroup != null)
             {
                 // 有group由group统一处理
-                Debug.LogError("UIToggle can't set change event when it's in a group, please use group SetChangeEvent instead.");
+                LiteRuntime.Get<UIModule>().LogError?.Invoke("UIToggle can't set change event when it's in a group, please use group SetChangeEvent instead.");
                 return;
             }
             
@@ -125,7 +131,7 @@ namespace UnityEngine.UI
             {
                 if (group == null)
                 {
-                    Debug.LogError("UIToggle can't set toggle when it's in a group, please use group SetToggle instead.");
+                    LiteRuntime.Get<UIModule>().LogError?.Invoke("UIToggle can't set toggle when it's in a group, please use group SetToggle instead.");
                 }
                 return;
             }

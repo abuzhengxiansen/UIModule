@@ -1,7 +1,7 @@
 {
-  "name": "com.yoyounity.uimodule",
+  "name": "com.unyoyo.uimodule",
   "version": "1.0.0",
-  "displayName": "YoYoUnity UI Module",
+  "displayName": "UnYoyo UI Module",
   "description": "a ui module for unity projects",
   "unity": "2021.3",
   "unityRelease": "0f1",

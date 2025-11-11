@@ -1,4 +1,6 @@
 using System;
+using GamePlay;
+using LiteQuark.Runtime;
 using UnityEngine.EventSystems;
 using TMPro;
 
@@ -34,20 +36,12 @@ namespace UnityEngine.UI
         {
             if (fill == null)
             {
-#if UNITY_EDITOR
-                Debug.LogError($"UISlider {name} Fill is null");
-#else
-                Debug.LogError($"UISlider {name} Fill is null");
-#endif
+                LiteRuntime.Get<UIModule>().LogError?.Invoke($"UISlider {name} Fill is null");
                 return;
             }
             if (fill.sprite != null && fill.type != Image.Type.Filled)
             {
-#if UNITY_EDITOR
-                Debug.LogError($"UISlider {name} Fill image type need be Filled");
-#else
-                Debug.LogError($"UISlider {name} Fill is not filled");
-#endif
+                LiteRuntime.Get<UIModule>().LogError?.Invoke($"UISlider {name} Fill image type need be Filled");
                 return;
             }
             fill.fillAmount = Progress;

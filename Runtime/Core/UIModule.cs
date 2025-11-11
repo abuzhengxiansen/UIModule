@@ -26,6 +26,25 @@ namespace GamePlay
         private readonly Queue<BaseView> _pendingDisposeViewQueue = new ();
         private Vector2 _adaptAnchorMin = Vector2.zero;
         private Vector2 _adaptAnchorMax = Vector2.one;
+        
+        public Action<string> AudioPlay { get; private set; }
+        public Action<string> LogWarn { get; private set; }
+        public Action<string> LogError { get; private set; }
+        
+        public void SetAudioPlay(Action<string> action)
+        {
+            AudioPlay = action;
+        }
+        
+        public void SetLogWarn(Action<string> action)
+        {
+            LogWarn = action;
+        }
+        
+        public void SetLogError(Action<string> action)
+        {
+            LogError = action;
+        }
 
         #region 内部
         
@@ -127,7 +146,7 @@ namespace GamePlay
             {
                 if (!uiObj)
                 {
-                    LiteRuntime.Log.Warn("OpenUIAsync failed: {0} prefab not found at {1}", config.Type.Name, config.Path);
+                    LogWarn?.Invoke($"OpenUIAsync failed: {config.Type.Name} prefab not found at {config.Path}");
                     return;
                 }
                 
@@ -271,7 +290,7 @@ namespace GamePlay
             }
             else if (topView != null && topView == uiView)
             {
-                Debug.LogWarning($"{config.Name} is already open in the top, no need to reopen");
+                LogWarn?.Invoke($"{config.Name} is already open in the top, no need to reopen");
             }
             else
             {
@@ -393,10 +412,36 @@ namespace GamePlay
 
         #endregion
 
+        /// <summary>
+        /// 初始化 UI 模块
+        /// </summary>
         public UniTask<bool> Initialize()
         {
-            _root = GameObject.Find("Canvas").transform;
-            UiCamera = _root.GetComponent<Canvas>().worldCamera;
+            var config = UIModuleConfig.Instance;
+            if (!string.IsNullOrEmpty(config.uiRootPath))
+            {
+                var rootObj = GameObject.Find(config.uiRootPath);
+                if (rootObj != null)
+                {
+                    _root = rootObj.transform;
+                }
+                else
+                {
+                    LogError?.Invoke($"UI Root not found at path: {config.uiRootPath}");
+                    return UniTask.FromResult(false);
+                }
+            }
+            else
+            {
+                LogError?.Invoke("UI Root is not set. Please set it in UIModuleSettings or pass it to Initialize method.");
+                return UniTask.FromResult(false);
+            }
+            
+            var canvas = _root.GetComponent<Canvas>();
+            if (canvas != null)
+            {
+                UiCamera = canvas.worldCamera;
+            }
             
             SetSafeArea(Screen.safeArea);
             InitUILayers();

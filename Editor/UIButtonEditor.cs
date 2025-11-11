@@ -15,7 +15,6 @@ namespace UnityEngine.UI
         private SerializedProperty _pressEffectInterval;
         private SerializedProperty _pressEffectTime;
         private SerializedProperty _clickMode;
-        private SerializedProperty _clickEffectMode;
         private SerializedProperty _isOpenPress;
         private SerializedProperty _showDetailSetting;
 
@@ -31,14 +30,8 @@ namespace UnityEngine.UI
             _pressEffectInterval = serializedObject.FindProperty("pressEffectInterval");
             _pressEffectTime = serializedObject.FindProperty("pressEffectTime");
             _clickMode = serializedObject.FindProperty("clickMode");
-            _clickEffectMode = serializedObject.FindProperty("clickEffectMode");
             _isOpenPress = serializedObject.FindProperty("isOpenPress");
             _showDetailSetting = serializedObject.FindProperty("showDetailSetting");
-
-            if (_clickEffectMode.enumValueIndex != 0 && _target.GetComponent<ClickEffectSingle>() == null)
-            {
-                ApplyClickEffectMode();
-            }
         }
 
         public override void OnInspectorGUI()
@@ -46,15 +39,7 @@ namespace UnityEngine.UI
             serializedObject.Update();
             base.OnInspectorGUI();
 
-            _clickMode.enumValueIndex =
-                EditorGUILayout.Popup("Click Mode", _clickMode.enumValueIndex, _clickMode.enumDisplayNames);
-            var clickEffectMode = EditorGUILayout.Popup("Click Effect Mode", _clickEffectMode.enumValueIndex,
-                _clickEffectMode.enumDisplayNames);
-            if (clickEffectMode != _clickEffectMode.enumValueIndex)
-            {
-                _clickEffectMode.enumValueIndex = clickEffectMode;
-                ApplyClickEffectMode();
-            }
+            _clickMode.enumValueIndex = EditorGUILayout.Popup("Click Mode", _clickMode.enumValueIndex, _clickMode.enumDisplayNames);
 
             EditorGUILayout.PropertyField(_isOpenPress, new GUIContent("Is Open Press", "是否开启按压效果"));
 
@@ -80,18 +65,6 @@ namespace UnityEngine.UI
             }
 
             serializedObject.ApplyModifiedProperties();
-        }
-
-        private void ApplyClickEffectMode()
-        {
-            DestroyImmediate(_target.GetComponent(typeof(ClickEffectSingle)));
-
-            var effectComp = (ClickEffectModes)_clickEffectMode.enumValueIndex switch
-            {
-                ClickEffectModes.Jelly => _target.gameObject.AddComponent<ClickEffectJelly>(),
-                _ => null
-            };
-            effectComp?.SetSelectable(_target);
         }
         
         [MenuItem("GameObject/FrameworkUI/UIButton-TMP", false, 4)]

@@ -3,7 +3,7 @@ using LiteQuark.Runtime;
 
 namespace UnityEngine.UI
 {
-    public class ClickEffectJelly : ClickEffectSingle, IPointerDownHandler, IPointerExitHandler, IPointerUpHandler, IPointerEnterHandler
+    public class ClickEffectJelly : Selectable
     {
         public Transform effectRoot;
         
@@ -13,38 +13,46 @@ namespace UnityEngine.UI
         private ulong _actionId;
         // private bool _isPress;
         
-        public void OnPointerDown(PointerEventData eventData)
+        public override void OnPointerDown(PointerEventData eventData)
         {
+            base.OnPointerDown(eventData);
+            
             // _isPress = true;
             if (_effectShow) return;
-            if (!Selectable.IsActive() || !Selectable.IsInteractable()) return;
+            if (!IsActive() || !IsInteractable()) return;
             
             ShowStartTween();
         }
 
-        public void OnPointerExit(PointerEventData eventData)
+        public override void OnPointerExit(PointerEventData eventData)
         {
+            base.OnPointerExit(eventData);
+            
             // if (!_isPress) return;
             // if (!_effectShow) return;
-            // if (!Selectable.IsActive() || !Selectable.IsInteractable()) return;
+            // if (!IsActive() || !IsInteractable()) return;
             //
             // ShowEndTween();
         }
 
-        public void OnPointerUp(PointerEventData eventData)
+        public override void OnPointerUp(PointerEventData eventData)
         {
+            base.OnPointerUp(eventData);
+            
             // _isPress = false;
             if (!_effectShow) return;
-            if (!Selectable.IsActive() || !Selectable.IsInteractable()) return;
+            if (!IsActive() || !IsInteractable()) return;
             
             ShowEndTween();
         }
 
-        public void OnPointerEnter(PointerEventData eventData)
+        public override void OnPointerEnter(PointerEventData eventData)
         {
+            base.OnPointerEnter(eventData);
+            
             // if (!_isPress) return;
             // if (_effectShow) return;
-            // if (!Selectable.IsActive() || !Selectable.IsInteractable()) return;
+            // if (!IsActive() || !IsInteractable()) return;
             //
             // ShowStartTween();
         }

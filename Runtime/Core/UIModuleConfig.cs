@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace GamePlay.Editor
+namespace GamePlay
 {
     /// <summary>
     /// UI模块编辑器配置
@@ -28,7 +28,13 @@ namespace GamePlay.Editor
         [Tooltip("预设文件夹路径")]
         public string presetFolderPath = "Assets/Editor/PresetTemplate";
         
-        private const string ConfigPath = "Assets/Resources/UIModuleConfig.asset";
+        [Header("UI根节点配置")]
+        [Tooltip("UI根节点在场景中的路径")]
+        public string uiRootPath = "Canvas";
+        
+        [Header("按钮点击音效资源默认播放参数")]
+        [Tooltip("自身传入的播放回调对应的参数")]
+        public string defalutClickAudio = "Audios/sd_btn_clock.wav";
         
         private static UIModuleConfig _instance;
         

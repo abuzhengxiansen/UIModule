@@ -1,4 +1,6 @@
 using System;
+using GamePlay;
+using LiteQuark.Runtime;
 using UnityEngine.EventSystems;
 
 namespace UnityEngine.UI
@@ -6,24 +8,22 @@ namespace UnityEngine.UI
     public class UIButton : Button
     {
         private static float _lastClickEffectTime;
+        private const string DefaultClickSound = "Default";
         
         #region 内部
         
         // 组件自定义
-        public string clickSound = "sd_btn_clock";
-        public string clickDisableSound = "sd_btn_clock";
+        public string clickSound = DefaultClickSound;
+        public string clickDisableSound = DefaultClickSound;
         public float clickCooldownTime = 0.1f;
         public float doubleClickEffectTime = 0.4f;
         public float pressEffectInterval = 0.2f;
         public float pressEffectTime = 0.8f;
         public ClickModes clickMode = ClickModes.Single;
         public bool isOpenPress;
-        public ClickEffectModes ClickEffectModes => clickEffectMode;
         
         [SerializeField]
         private bool showDetailSetting;
-        [SerializeField]
-        private ClickEffectModes clickEffectMode = ClickEffectModes.None;
         
         private Action<UIButton> _onClick;
         private Action<UIButton> _onDoubleClick;
@@ -96,7 +96,13 @@ namespace UnityEngine.UI
         private void PlayAudio(string sound)
         {
             if (string.IsNullOrEmpty(sound)) return;
-            GamePlay.AudioUtils.PlaySound($"Audios/{sound}.wav");
+
+            if (sound == DefaultClickSound)
+            {
+                sound = UIModuleConfig.Instance.defalutClickAudio;
+            }
+            
+            LiteRuntime.Get<UIModule>().AudioPlay?.Invoke(sound);
         }
         
         public enum ClickModes
@@ -115,7 +121,7 @@ namespace UnityEngine.UI
         {
             if (clickMode != ClickModes.Single)
             {
-                Debug.LogError("UIButton ClickType is not Single.");
+                LiteRuntime.Get<UIModule>().LogError?.Invoke("UIButton ClickType is not Single.");
                 return;
             }
             _onClick = action;
@@ -125,7 +131,7 @@ namespace UnityEngine.UI
         {
             if (clickMode != ClickModes.Double)
             {
-                Debug.LogError("UIButton ClickType is not Double.");
+                LiteRuntime.Get<UIModule>().LogError?.Invoke("UIButton ClickType is not Double.");
                 return;
             }
             _onDoubleClick = action;
@@ -152,12 +158,6 @@ namespace UnityEngine.UI
         }
         
         #endregion
-    }
-
-    public enum ClickEffectModes
-    {
-        None,
-        Jelly,
     }
 }
 
