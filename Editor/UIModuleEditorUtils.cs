@@ -27,7 +27,7 @@ namespace GamePlay.Editor
         /// <param name="lines"></param>
         /// <param name="str"></param>
         /// <returns></returns>
-        private static int FindTargetLineIndex(List<string> lines, string str)
+        public static int FindTargetLineIndex(List<string> lines, string str)
         {
             // 查找包含该Name属性的行
             for (var i = 0; i < lines.Count; i++)
@@ -44,7 +44,7 @@ namespace GamePlay.Editor
         /// <summary>
         /// 查询行尾
         /// </summary>
-        private static int FindLastClassBraceIndex(List<string> lines)
+        public static int FindLastClassBraceIndex(List<string> lines)
         {
             var findCount = 0;
             // 从后往前查找第二个闭合大括号（类的结束位置）
@@ -394,108 +394,6 @@ namespace GamePlay.Editor
             }
         }
 
-        #endregion
-
-        #region 生成UI界面配置
-        
-        private const string UIConfigsContent = @"using System;
-
-
-namespace GamePlay
-{
-    public static class UIConfigExtensions
-    {
-        private static UIModule _uiModule;
-        public static void OpenUI(this UIConfig config, ICustomUIData data = null)
-        {
-            if (_uiModule == null)
-            {
-                _uiModule = LiteRuntime.Get<UIModule>();
-            }
-            _uiModule.OpenUI(config, data);
-        }
-        
-        public static void CloseUI(this UIConfig config, Action callback = null)
-        {
-            if (_uiModule == null)
-            {
-                _uiModule = LiteRuntime.Get<UIModule>();
-            }
-            _uiModule.CloseUI(config.Type, callback);
-        }
-    }
-
-    public static partial class UIConfigs
-    {
-    }
-}";
-
-        private static bool CreateUIConfigsFile()
-        {
-            var parentDir = Path.GetDirectoryName(UIConfigsPath);
-            if (!Directory.Exists(parentDir))
-            {
-                Debug.LogWarning($"UIEditorUtils UIConfigsPath directory is not exist: {parentDir}");
-                return false;
-            }
-            File.WriteAllText(UIConfigsPath, UIConfigsContent, Encoding.UTF8);
-            AssetDatabase.Refresh();
-            return true;
-        }
-
-        public static bool UpdateOrAddUConfig(UIViewBinder viewBinder)
-        {
-            if (!File.Exists(UIConfigsPath) && !CreateUIConfigsFile())
-            {
-                return false;
-            }
-            
-            // 读取所有行
-            var allLines = File.ReadAllLines(UIConfigsPath).ToList();
-            
-            // 尝试查找匹配行（根据Name属性）
-            var targetIndex = FindTargetLineIndex(allLines, $"Name = \"{viewBinder.name}\"");
-        
-            if (targetIndex >= 0)
-            {
-                // 生成新的字段行
-                var newFieldLine = GenerateFieldLine(viewBinder);
-                // 替换现有行
-                allLines[targetIndex] = newFieldLine;
-            }
-            else
-            {
-                // 找到类结束大括号位置（最后一行）
-                var lastBraceIndex = FindLastClassBraceIndex(allLines);
-                // 生成新的字段行
-                var newFieldLine = GenerateFieldLine(viewBinder);
-                // 在结束大括号前插入新行
-                allLines.Insert(lastBraceIndex, newFieldLine);
-            }
-        
-            // 写入文件（使用UTF8编码）
-            File.WriteAllLines(UIConfigsPath, allLines, Encoding.UTF8);
-            return true;
-        }
-        
-        private static string GenerateFieldLine(UIViewBinder viewBinder)
-        {
-            var path = PrefabStageUtility.GetCurrentPrefabStage().assetPath;
-            // 将Assets/StandaloneAssets/前缀剔除
-            if (path.StartsWith("Assets/StandaloneAssets/"))
-            {
-                path = path["Assets/StandaloneAssets/".Length..];
-            }
-            // 使用相同的格式生成新行
-            return $"        public static UIConfig {viewBinder.name} = new() {{ " +
-                   $"Type = typeof({viewBinder.name}), " +
-                   $"Name = \"{viewBinder.name}\", " +
-                   (viewBinder.isCoexist ? "IsCoexist = true, " : "") +
-                   (viewBinder.isMultiple ? "IsMultiple = true, " : "") +
-                   $"Path = \"{path}\", " +
-                   $"Layer = LayerType.{viewBinder.layer.ToString()} }};";
-        }
-        
         #endregion
         
         /// <summary>
