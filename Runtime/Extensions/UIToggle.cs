@@ -7,19 +7,17 @@ namespace UnityEngine.UI
 {
     public sealed class UIToggle : Selectable, IPointerClickHandler, ICanvasElement
     {
-        private static float _lastClickEffectTime;
-        private const string DefaultClickSound = "Default";
+        public static event Action<UIToggle, bool> GlobalClickEvent;
 
-        #region 内部
+        #region internal
         
-        // 组件自定义
-        public string clickSound = DefaultClickSound;
-        public string clickDisableSound = DefaultClickSound;
+        private static float _lastClickEffectTime;
         public float clickCooldownTime = 0.1f;
         public UIToggleGroup toggleGroup;
         public CanvasGroup checkMark;
         public TMPro.TextMeshProUGUI text;
         public bool IsOn => isOn;
+        public string customContent;
         
         [SerializeField]
         private bool showDetailSetting;
@@ -47,12 +45,12 @@ namespace UnityEngine.UI
 
             if (!interactable)
             {
-                PlayAudio(clickDisableSound);
+                OnGlobalClickEvent(this, false);
                 _OnDisableClick?.Invoke(this);
             }
             else
             {
-                PlayAudio(clickSound);
+                OnGlobalClickEvent(this, true);
                 if (toggleGroup != null)
                 {
                     toggleGroup.SetToggle(this, !isOn);
@@ -73,18 +71,9 @@ namespace UnityEngine.UI
             checkMark.alpha = isOn ? 1f : 0f;
         }
         
-        private void PlayAudio(string sound)
+        private static void OnGlobalClickEvent(UIToggle obj, bool isValid)
         {
-            if (string.IsNullOrEmpty(sound)) return;
-            
-            if (sound == DefaultClickSound)
-            {
-                var uiModule = LiteRuntime.Get<UIModule>();
-                sound = uiModule?.Config?.defaultClickAudio;
-                if (string.IsNullOrEmpty(sound)) return;
-            }
-            
-            LiteRuntime.Get<UIModule>()?.PlayAudio(sound);
+            GlobalClickEvent?.Invoke(obj, isValid);
         }
         
         public void Rebuild(CanvasUpdate executing)
@@ -103,7 +92,7 @@ namespace UnityEngine.UI
         
         #endregion
 
-        #region 对外
+        #region public
         
         public void SetClickEvent(Action<UIToggle> action)
         {

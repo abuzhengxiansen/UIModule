@@ -33,44 +33,6 @@ namespace GamePlay
         /// </summary>
         public UIModuleConfig Config => _root?.Config;
 
-        #region 外部注册接口
-
-        private Action<string> _audioPlay;
-        private Action<string> _logWarn;
-        private Action<string> _logError;
-        
-        public void SetAudioPlay(Action<string> action)
-        {
-            _audioPlay = action;
-        }
-        
-        public void PlayAudio(string audioPath)
-        {
-            _audioPlay?.Invoke(audioPath);
-        }
-        
-        public void SetLogWarn(Action<string> action)
-        {
-            _logWarn = action;
-        }
-        
-        public void LogWarn(string message)
-        {
-            _logWarn?.Invoke(message);
-        }
-        
-        public void SetLogError(Action<string> action)
-        {
-            _logError = action;
-        }
-        
-        public void LogError(string message)
-        {
-            _logError?.Invoke(message);
-        }
-
-        #endregion
-
         #region 内部
         
         private void SetSafeArea(Rect safeArea)
@@ -267,6 +229,16 @@ namespace GamePlay
                 view.Canvas.sortingOrder = order;
                 order += UiOrderSpace;
             }
+        }
+        
+        internal void LogWarn(string message)
+        {
+            LiteRuntime.Log.Warn(message);
+        }
+        
+        internal void LogError(string message)
+        {
+            LiteRuntime.Log.Error(message);
         }
 
         #endregion

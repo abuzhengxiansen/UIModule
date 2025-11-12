@@ -16,10 +16,6 @@ namespace GamePlay
         [Header("预设配置")]
         [Tooltip("预设文件夹路径")]
         public string presetFolderPath;
-        
-        [Header("按钮点击音效资源默认播放参数")]
-        [Tooltip("自身传入的播放回调对应的参数")]
-        public string defaultClickAudio = "Audios/sd_btn_clock.wav";
     }
 }
 

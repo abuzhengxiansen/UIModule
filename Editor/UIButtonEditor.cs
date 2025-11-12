@@ -8,8 +8,6 @@ namespace UnityEngine.UI
     public class UIButtonEditor : UnityEditor.UI.ButtonEditor
     {
         private UIButton _target;
-        private SerializedProperty _clickSound;
-        private SerializedProperty _clickDisableSound;
         private SerializedProperty _clickCooldownTime;
         private SerializedProperty _doubleClickEffectTime;
         private SerializedProperty _pressEffectInterval;
@@ -17,14 +15,13 @@ namespace UnityEngine.UI
         private SerializedProperty _clickMode;
         private SerializedProperty _isOpenPress;
         private SerializedProperty _showDetailSetting;
+        private SerializedProperty _customContent;
 
         protected override void OnEnable()
         {
             base.OnEnable();
 
             _target = target as UIButton;
-            _clickSound = serializedObject.FindProperty("clickSound");
-            _clickDisableSound = serializedObject.FindProperty("clickDisableSound");
             _clickCooldownTime = serializedObject.FindProperty("clickCooldownTime");
             _doubleClickEffectTime = serializedObject.FindProperty("doubleClickEffectTime");
             _pressEffectInterval = serializedObject.FindProperty("pressEffectInterval");
@@ -32,6 +29,7 @@ namespace UnityEngine.UI
             _clickMode = serializedObject.FindProperty("clickMode");
             _isOpenPress = serializedObject.FindProperty("isOpenPress");
             _showDetailSetting = serializedObject.FindProperty("showDetailSetting");
+            _customContent = serializedObject.FindProperty("customContent");
         }
 
         public override void OnInspectorGUI()
@@ -47,8 +45,6 @@ namespace UnityEngine.UI
             if (_showDetailSetting.boolValue)
             {
                 EditorGUI.indentLevel++;
-                EditorGUILayout.PropertyField(_clickSound, new GUIContent("Click Sound", "生效时点击音效"));
-                EditorGUILayout.PropertyField(_clickDisableSound, new GUIContent("Disable Sound", "屏蔽时点击音效"));
                 EditorGUILayout.PropertyField(_clickCooldownTime, new GUIContent("Click Cooldown", "有效点击的间隔时间"));
                 
                 if (_clickMode.enumValueIndex == (int)UIButton.ClickModes.Double)
@@ -60,6 +56,7 @@ namespace UnityEngine.UI
                     EditorGUILayout.PropertyField(_pressEffectTime, new GUIContent("Press Effect Time", "按压起效的时间"));
                     EditorGUILayout.PropertyField(_pressEffectInterval, new GUIContent("Press Effect Interval", "按压循环触发的间隔时间"));
                 }
+                EditorGUILayout.PropertyField(_customContent, new GUIContent("Custom Content", "自定义内容，可用于区分不同按钮效果"));
 
                 EditorGUI.indentLevel--;
             }

@@ -7,20 +7,23 @@ namespace UnityEngine.UI
 {
     public class UIButton : Button
     {
+        public enum ClickModes
+        {
+            Single,
+            Double
+        }
+        public static event Action<UIButton, bool> GlobalClickEvent;
+        
+        #region internal
+        
         private static float _lastClickEffectTime;
-        private const string DefaultClickSound = "Default";
-        
-        #region 内部
-        
-        // 组件自定义
-        public string clickSound = DefaultClickSound;
-        public string clickDisableSound = DefaultClickSound;
         public float clickCooldownTime = 0.1f;
         public float doubleClickEffectTime = 0.4f;
         public float pressEffectInterval = 0.2f;
         public float pressEffectTime = 0.8f;
         public ClickModes clickMode = ClickModes.Single;
         public bool isOpenPress;
+        public string customContent;
         
         [SerializeField]
         private bool showDetailSetting;
@@ -43,7 +46,6 @@ namespace UnityEngine.UI
         {
             if (!IsPressed()) return;
             if (_onPress == null || !(Time.time - _downTime > pressEffectTime) || !(Time.time - _lastClickEffectTime > pressEffectInterval)) return;
-            PlayAudio(clickSound);
             _onPress.Invoke(this);
             _lastClickEffectTime = Time.time;
         }
@@ -74,48 +76,33 @@ namespace UnityEngine.UI
 
             if (!interactable)
             {
-                PlayAudio(clickDisableSound);
+                OnGlobalClickEvent(this, false);
                 _onDisableClick?.Invoke(this);
             }
             else if (clickMode == ClickModes.Single)
             {
-                PlayAudio(clickSound);
+                OnGlobalClickEvent(this, true);
                 _onClick?.Invoke(this);
                 _lastClickEffectTime = Time.time;
             }
             else if (clickMode == ClickModes.Double && !Mathf.Approximately(Time.time, _lastClickTime) && Time.time - _lastClickTime < doubleClickEffectTime)
             {
-                PlayAudio(clickSound);
+                OnGlobalClickEvent(this, true);
                 _onDoubleClick?.Invoke(this);
                 _lastClickTime = Time.time;
             }
 
             _lastClickTime = Time.time;
         }
-
-        private void PlayAudio(string sound)
-        {
-            if (string.IsNullOrEmpty(sound)) return;
-
-            if (sound == DefaultClickSound)
-            {
-                var uiModule = LiteRuntime.Get<UIModule>();
-                sound = uiModule?.Config?.defaultClickAudio;
-                if (string.IsNullOrEmpty(sound)) return;
-            }
-            
-            LiteRuntime.Get<UIModule>()?.PlayAudio(sound);
-        }
         
-        public enum ClickModes
+        private static void OnGlobalClickEvent(UIButton obj, bool isValid)
         {
-            Single,
-            Double
+            GlobalClickEvent?.Invoke(obj, isValid);
         }
         
         #endregion
 
-        #region 对外
+        #region public
         
         public bool IsBtnPressed => IsPressed();
         

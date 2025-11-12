@@ -10,28 +10,26 @@ namespace UnityEditor.UI
     public class UIToggleEditor : SelectableEditor
     {
         private UIToggle _target;
-        private SerializedProperty _clickSound;
-        private SerializedProperty _clickDisableSound;
         private SerializedProperty _clickCooldownTime;
         private SerializedProperty _showDetailSetting;
         private SerializedProperty _toggleGroup;
         private SerializedProperty _checkMark;
         private SerializedProperty _isOn;
         private SerializedProperty _text;
+        private SerializedProperty _customContent;
 
         protected override void OnEnable()
         {
             base.OnEnable();
 
             _target = target as UIToggle;
-            _clickSound = serializedObject.FindProperty("clickSound");
-            _clickDisableSound = serializedObject.FindProperty("clickDisableSound");
             _clickCooldownTime = serializedObject.FindProperty("clickCooldownTime");
             _showDetailSetting = serializedObject.FindProperty("showDetailSetting");
             _isOn = serializedObject.FindProperty("isOn");
             _toggleGroup = serializedObject.FindProperty("toggleGroup");
             _checkMark = serializedObject.FindProperty("checkMark");
             _text = serializedObject.FindProperty("text");
+            _customContent = serializedObject.FindProperty("customContent");
         }
 
         public override void OnInspectorGUI()
@@ -60,9 +58,8 @@ namespace UnityEditor.UI
             if (_showDetailSetting.boolValue)
             {
                 EditorGUI.indentLevel++;
-                EditorGUILayout.PropertyField(_clickSound, new GUIContent("Click Sound", "生效时点击音效"));
-                EditorGUILayout.PropertyField(_clickDisableSound, new GUIContent("Disable Sound", "屏蔽时点击音效"));
                 EditorGUILayout.PropertyField(_clickCooldownTime, new GUIContent("Click Cooldown", "有效点击的间隔时间"));
+                EditorGUILayout.PropertyField(_customContent, new GUIContent("Custom Content", "自定义内容，可用于区分不同按钮效果"));
                 EditorGUI.indentLevel--;
             }
             

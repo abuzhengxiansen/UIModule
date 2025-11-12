@@ -1,5 +1,3 @@
-using UnityEngine.UI;
-
 namespace GamePlay
 {
     public class UIViewBinder : UIBaseBinder
