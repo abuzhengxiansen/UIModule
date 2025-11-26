@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEditor;
 using UnityEditor.Presets;
 using UnityEditor.SceneManagement;
+using UnityEditor.Experimental.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -153,6 +154,7 @@ namespace GamePlay.Editor
             { typeof(UISlider), new[] { "@Slider" } },
             { typeof(UILoopList), new[] { "@LoopList" } },
             { typeof(Animator), new[] { "@Animator", "@Anim" } },
+            { typeof(UIDrag), new[] { "@Drag" } },
         };
 
         public static string GenerateUIBindCodes(string newContent, UIBaseBinder binder)
@@ -421,17 +423,26 @@ namespace GamePlay.Editor
                 EditorUtility.DisplayDialog("错误", "只能选择文件夹", "确定");
                 return;
             }
+            
+            var uiCanvas = Object.FindObjectOfType<UICanvas>();
+            if (uiCanvas == null)
+            {
+                EditorUtility.DisplayDialog("错误", "场景中需要有UICanvas且配置正确", "确定");
+                return;
+            }
         
             if (!targetFolder.EndsWith("/")) targetFolder += "/";
     
             var prefabPath = AssetDatabase.GenerateUniqueAssetPath(targetFolder + "UINew.prefab");
     
-            // 创建根节点GameObject
+            // 在UICanvas下创建根节点GameObject
             var rootGo = new GameObject("UINew");
+            rootGo.transform.SetParent(uiCanvas.transform, false);
             
-            // 添加Canvas组件
+            // 添加Canvas组件（会自动添加RectTransform）
             var canvas = rootGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.overrideSorting = true;
             
             // 添加GraphicRaycaster组件
             rootGo.AddComponent<GraphicRaycaster>();
@@ -439,41 +450,46 @@ namespace GamePlay.Editor
             // 添加UIViewBinder组件
             rootGo.AddComponent<UIViewBinder>();
             
-            // 创建Root子节点
-            var rootChild = new GameObject("Root");
-            rootChild.transform.SetParent(rootGo.transform, false);
-            var rootRect = rootChild.AddComponent<RectTransform>();
-            rootChild.AddComponent<CanvasGroup>();
+            // 获取RectTransform并设置
+            var rootRect = rootGo.GetComponent<RectTransform>();
+            FilterUIRoot(rootRect);
             
-            // 设置Root为Stretch布局
-            rootRect.anchorMin = Vector2.zero;
-            rootRect.anchorMax = Vector2.one;
-            rootRect.offsetMin = Vector2.zero;
-            rootRect.offsetMax = Vector2.zero;
-            
-            // 创建FullRoot子节点
-            var fullRootChild = new GameObject("FullRoot");
+            var fullRootChild = new GameObject("BgRoot");
             fullRootChild.transform.SetParent(rootGo.transform, false);
             var fullRootRect = fullRootChild.AddComponent<RectTransform>();
             fullRootChild.AddComponent<CanvasGroup>();
+            FilterUIRoot(fullRootRect);
             
-            // 设置FullRoot为Stretch布局
-            fullRootRect.anchorMin = Vector2.zero;
-            fullRootRect.anchorMax = Vector2.one;
-            fullRootRect.offsetMin = Vector2.zero;
-            fullRootRect.offsetMax = Vector2.zero;
+            // 创建Root子节点
+            var rootChild = new GameObject("Root");
+            rootChild.transform.SetParent(rootGo.transform, false);
+            var rootChildRect = rootChild.AddComponent<RectTransform>();
+            rootChild.AddComponent<CanvasGroup>();
+            FilterUIRoot(rootChildRect);
             
-            // 保存为Prefab
+            // 保存为独立的Prefab
             var newPrefab = PrefabUtility.SaveAsPrefabAsset(rootGo, prefabPath);
-        
+            
+            // 删除场景中的临时节点
             Object.DestroyImmediate(rootGo);
-    
+            
             AssetDatabase.Refresh();
+            
             // 选中并高亮新创建的Prefab
             Selection.activeObject = newPrefab;
             EditorGUIUtility.PingObject(newPrefab);
+            
             // 打开Prefab编辑界面
             AssetDatabase.OpenAsset(newPrefab);
+        }
+
+        private static void FilterUIRoot(RectTransform rect)
+        {
+            rect.gameObject.layer = LayerMask.NameToLayer("UI");
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
         }
         
         /// <summary>

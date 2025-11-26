@@ -2,12 +2,14 @@
 using GamePlay;
 using LiteQuark.Runtime;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace GamePlay
 {
     public abstract class BaseView : BaseWidget
     {
         public Canvas Canvas { get; private set; }
+        public GraphicRaycaster Raycaster { get; private set; }
         public UIConfig Config { get; private set; }
         
         private Action _showOverCallback;
@@ -19,6 +21,7 @@ namespace GamePlay
             
             Config = config;
             Canvas = Tf.GetComponent<Canvas>();
+            Raycaster = Tf.GetComponent<GraphicRaycaster>();
             AutoFilterAdaptRoot();
         }
         
@@ -84,13 +87,8 @@ namespace GamePlay
 
         public void Show(Action callBack = null)
         {
-            if (Status is not UIStatus.Hiding and not UIStatus.Opening)
-            {
-                LiteRuntime.Log.Warn("{0} Show failed: ui status is need to be Hiding or Opening, but current status is {1}", Name, Status);
-                return;
-            }
-            
             Canvas.enabled = true;
+            Raycaster.enabled = false;
             
             DoShow(() =>
             {
@@ -101,6 +99,7 @@ namespace GamePlay
 
         private void ShowOver()
         {
+            Raycaster.enabled = true;
             Status = UIStatus.Showing;
             OnShow();
             
@@ -133,12 +132,7 @@ namespace GamePlay
 
         public void Hide(Action callBack = null)
         {
-            if (Status is not UIStatus.Showing)
-            {
-                LiteRuntime.Log.Warn("{0} Hide failed: ui status is need to be Showing, but current status is {1}", Name, Status);
-                return;
-            }
-            
+            Raycaster.enabled = false;
             DoHide(() =>
             {
                 HideOver();

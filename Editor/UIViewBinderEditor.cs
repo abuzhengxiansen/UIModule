@@ -180,13 +180,13 @@ namespace GamePlay
     public static class UIConfigExtensions
     {
         private static UIModule _uiModule;
-        public static void OpenUI(this UIConfig config, ICustomUIData data = null)
+        public static void OpenUI(this UIConfig config, ICustomUIData data = null, Action callback = null)
         {
             if (_uiModule == null)
             {
                 _uiModule = LiteRuntime.Get<UIModule>();
             }
-            _uiModule.OpenUI(config, data);
+            _uiModule.OpenUI(config, data, callback);
         }
         
         public static void CloseUI(this UIConfig config, Action callback = null)

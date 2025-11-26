@@ -138,6 +138,7 @@ namespace GamePlay
             if (_cacheAssets.TryGetValue(address, out var cacheAsset))
             {
                 callback?.Invoke(cacheAsset as T);
+                return;
             }
             
             LiteRuntime.Asset.LoadAssetAsync<T>(address, (asset) =>
@@ -185,6 +186,15 @@ namespace GamePlay
         #endregion
         
         #region widget
+        
+        public T GetWidget<T>(string widgetName) where T : BaseWidget
+        {
+            if (_widgetCacheDict.TryGetValue(widgetName, out var cacheWidget))
+            {
+                return cacheWidget as T;
+            }
+            return null;
+        }
 
         public void CreateWidget<T>(string widgetName, Transform parent, string address, ICustomUIData data = null, Action<T> callback = null) where T : BaseWidget
         {

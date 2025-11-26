@@ -35,7 +35,7 @@ namespace GamePlay
 
         #region 内部
         
-        private void SetSafeArea(Rect safeArea)
+        public void SetSafeArea(Rect safeArea)
         {
             _adaptAnchorMin = safeArea.position;
             _adaptAnchorMax = safeArea.position + safeArea.size;
@@ -125,11 +125,11 @@ namespace GamePlay
             return uiView;
         }
         
-        private void OpenUIAsync(UIConfig config, LayerType layer, ICustomUIData data)
+        private void OpenUIAsync(UIConfig config, ICustomUIData data, Action callback = null)
         {
             LiteRuntime.Event.Send(new UIOperateEvent(config.Type, config.Name, UIOperateState.PrepareCreate));
             
-            CreateUIObjAsync(config.Path, layer, (uiObj) =>
+            CreateUIObjAsync(config.Path, config.Layer, (uiObj) =>
             {
                 if (!uiObj)
                 {
@@ -139,7 +139,7 @@ namespace GamePlay
                 
                 var uiView = CreateUIView(config, uiObj);
                 LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Created));
-                InternalOpenUI(uiView, data);
+                InternalOpenUI(uiView, data, callback);
             });
         }
         
@@ -149,10 +149,14 @@ namespace GamePlay
          
             LiteRuntime.Event.Send(new UIOperateEvent(view, UIOperateState.PrepareOpen));
             
-            PopStack(view);
-            var curTopView = GetTopUI(view.Config.Layer);
-            curTopView?.Covered(view);
-            PushStack(view);
+            var topView = GetTopUI(view.Config.Layer);
+            if (topView == null || topView != view)
+            {
+                PopStack(view);
+                var curTopView = GetTopUI(view.Config.Layer);
+                curTopView?.Covered(view);
+                PushStack(view);
+            }
             
             if (view.Status == UIStatus.Sleeping)
             {
@@ -204,8 +208,8 @@ namespace GamePlay
             _uiViewCaches.Remove(uiView);
             PopStack(uiView);
             _pendingDisposeViewQueue.Enqueue(uiView);
-            uiView.Dispose();
             callback?.Invoke();
+            uiView.Dispose();
         }
         
         private void DisposePendingQueueImmediately()
@@ -265,7 +269,7 @@ namespace GamePlay
             }
         }
 
-        public void OpenUI(UIConfig config, ICustomUIData data)
+        public void OpenUI(UIConfig config, ICustomUIData data, Action callback = null)
         {
             var layer = config.Layer;
             var topView = GetTopUI(layer);
@@ -277,17 +281,17 @@ namespace GamePlay
                 {
                     topView.Hide(() =>
                     {
-                        OpenUIAsync(config, layer, data);
+                        OpenUIAsync(config, data, callback);
                     });
                 }
                 else
                 {
-                    OpenUIAsync(config, layer, data);
+                    OpenUIAsync(config, data, callback);
                 }
             }
             else if (topView != null && topView == uiView)
             {
-                LogWarn($"{config.Name} is already open in the top, no need to reopen");
+                InternalOpenUI(uiView, data, callback);
             }
             else
             {
@@ -295,12 +299,12 @@ namespace GamePlay
                 {
                     topView.Hide(() =>
                     {
-                        InternalOpenUI(uiView, data);
+                        InternalOpenUI(uiView, data, callback);
                     });
                 }
                 else
                 {
-                    InternalOpenUI(uiView, data);
+                    InternalOpenUI(uiView, data, callback);
                 }
             }
         }
@@ -308,7 +312,14 @@ namespace GamePlay
         public void CloseUI(Type type, Action callback = null)
         {
             var uiView = GetUI(type);
+            
             if (uiView == null || uiView.Status == UIStatus.Disposing) return;
+
+            if (uiView.Config.IsMultiple)
+            {
+                LogWarn("CloseUI failed: Cannot close multiple instance UI by type.");
+                return;
+            }
 
             CloseUI(uiView, callback);
         }
