@@ -12,17 +12,16 @@ namespace GamePlay
     {
         private class UILayer
         {
-            public LayerType LayerType = LayerType.None;
-            public int LayerOrder;
+            public int LayerId;
+            public string LayerName;
             public Transform LayerTransform;
         }
         
         private const int UiOrderSpace = 100;
-        private const int LayerOrderSpace = 1000;
         public Camera UiCamera { get; private set; }
         private readonly List<UILayer> _uiLayers = new();
         private UICanvas _root;
-        private readonly Dictionary<LayerType, LinkedList<BaseView>> _uiViewList = new();
+        private readonly Dictionary<int, LinkedList<BaseView>> _uiViewList = new();
         private readonly HashSet<BaseView> _uiViewCaches = new();
         private readonly Queue<BaseView> _pendingDisposeViewQueue = new ();
         private Vector2 _adaptAnchorMin = Vector2.zero;
@@ -33,28 +32,42 @@ namespace GamePlay
         /// </summary>
         public UIModuleConfig Config => _root?.Config;
 
-        #region 内部
+        #region internal
         
-        public void SetSafeArea(Rect safeArea)
+        public void Tick(float deltaTime)
         {
-            _adaptAnchorMin = safeArea.position;
-            _adaptAnchorMax = safeArea.position + safeArea.size;
+            DisposePendingQueueImmediately();
             
-            _adaptAnchorMin.x /= Screen.width;
-            _adaptAnchorMin.y /= Screen.height;
-            _adaptAnchorMax.x /= Screen.width;
-            _adaptAnchorMax.y /= Screen.height;
-            
+            foreach (var (_, list) in _uiViewList)
+            {
+                var currentNode = list.First;
+                while (currentNode != null)
+                {
+                    var view = currentNode.Value;
+                    if (view.Status != UIStatus.Sleeping && view.Status != UIStatus.Disposing) 
+                    {
+                        view.Tick(deltaTime);
+                    }
+    
+                    currentNode = currentNode.Next;
+                }
+            }
         }
 
         private void InitUILayers()
         {
-            // 遍历LayerType枚举创建所有层级
-            foreach (LayerType layerType in Enum.GetValues(typeof(LayerType)))
+            // 从UILayerSettings创建所有层级
+            if (Config == null || Config.layers.Count == 0)
             {
-                if (layerType == LayerType.None) continue;
-                var order = (int)layerType * LayerOrderSpace;
-                _uiLayers.Add(CreateLayer(layerType, order));
+                Debug.LogError("UIModule: layers is not configured in UIModuleConfig!");
+                return;
+            }
+            
+            Config.layers.Sort((a, b) => a.layerOrder.CompareTo(b.layerOrder));
+            
+            foreach (var layerDefine in Config.layers)
+            {
+                _uiLayers.Add(CreateLayer(layerDefine));
             }
         }
         
@@ -70,19 +83,19 @@ namespace GamePlay
             _uiLayers.Clear();
         }
         
-        private UILayer GetLayer(LayerType layerType)
+        private UILayer GetLayer(int layerId)
         {
-            var layer = _uiLayers.Find(l => l.LayerType == layerType);
+            var layer = _uiLayers.Find(l => l.LayerId == layerId);
             return layer;
         }
         
-        private UILayer CreateLayer(LayerType layerType, int order)
+        private UILayer CreateLayer(UILayerDefine layerDefine)
         {
             var layer = new UILayer() {
-                LayerType = layerType,
-                LayerOrder = order
+                LayerId = layerDefine.layerId,
+                LayerName = layerDefine.layerName,
             };
-            var layerTransform = new GameObject(layer.LayerType.ToString(), typeof(RectTransform)).transform;
+            var layerTransform = new GameObject(layer.LayerName, typeof(RectTransform)).transform;
             layerTransform.SetParent(_root.transform);
             layer.LayerTransform = layerTransform;
                     
@@ -98,9 +111,9 @@ namespace GamePlay
             return layer;
         }
         
-        private void CreateUIObjAsync(string path, LayerType layerType, Action<GameObject> callback)
+        private void CreateUIObjAsync(string path, int layerId, Action<GameObject> callback)
         {
-            var layer = GetLayer(layerType);
+            var layer = GetLayer(layerId);
             LiteRuntime.Asset.InstantiateAsync(path, layer.LayerTransform, (uiObj) =>
             {
                 if (!uiObj)
@@ -222,16 +235,20 @@ namespace GamePlay
 
         private void RefreshOrder(BaseView uiView)
         {
-            var layerType = uiView.Config.Layer;
-            if (!_uiViewList.TryGetValue(layerType, out var list)) return;
-            if (list.Count == 0) return;
-            
-            var layer = GetLayer(layerType);
-            var order = layer.LayerOrder;
-            foreach (var view in list)
+            var curLayer = GetLayer(uiView.Config.Layer);
+            if (curLayer == null) return;
+
+            var orderNum = 0;
+            foreach (var layer in _uiLayers)
             {
-                view.Canvas.sortingOrder = order;
-                order += UiOrderSpace;
+                var list = _uiViewList.GetValueOrDefault(layer.LayerId);
+                if (list == null || list.Count == 0) continue;
+                
+                foreach (var view in list)
+                {
+                    view.Canvas.sortingOrder = orderNum;
+                    orderNum += UiOrderSpace;
+                }
             }
         }
         
@@ -247,26 +264,18 @@ namespace GamePlay
 
         #endregion
 
-        #region 对外接口
-
-        public void Tick(float deltaTime)
+        #region public
+        
+        public void SetSafeArea(Rect safeArea)
         {
-            DisposePendingQueueImmediately();
+            _adaptAnchorMin = safeArea.position;
+            _adaptAnchorMax = safeArea.position + safeArea.size;
             
-            foreach (var (_, list) in _uiViewList)
-            {
-                var currentNode = list.First;
-                while (currentNode != null)
-                {
-                    var view = currentNode.Value;
-                    if (view.Status != UIStatus.Sleeping && view.Status != UIStatus.Disposing) 
-                    {
-                        view.Tick(deltaTime);
-                    }
-    
-                    currentNode = currentNode.Next;
-                }
-            }
+            _adaptAnchorMin.x /= Screen.width;
+            _adaptAnchorMin.y /= Screen.height;
+            _adaptAnchorMax.x /= Screen.width;
+            _adaptAnchorMax.y /= Screen.height;
+            
         }
 
         public void OpenUI(UIConfig config, ICustomUIData data, Action callback = null)
@@ -337,14 +346,14 @@ namespace GamePlay
             });
         }
         
-        public BaseView GetTopUI(LayerType layerType = LayerType.None)
+        public BaseView GetTopUI(int layerId = -1)
         {
-            if (layerType == LayerType.None)
+            if (layerId == -1)
             {
                 for (var i = _uiLayers.Count - 1; i >= 0; i--)
                 {
                     var layer = _uiLayers[i];
-                    if (_uiViewList.TryGetValue(layer.LayerType, out var list) && list.Count > 0)
+                    if (_uiViewList.TryGetValue(layer.LayerId, out var list) && list.Count > 0)
                     {
                         return list.Last.Value;
                     }
@@ -352,7 +361,7 @@ namespace GamePlay
             }
             else
             {
-                if (!_uiViewList.TryGetValue(layerType, out var list))
+                if (!_uiViewList.TryGetValue(layerId, out var list))
                 {
                     return null;
                 }
@@ -382,9 +391,9 @@ namespace GamePlay
             return _uiViewCaches.FirstOrDefault(view => view.Name == name);
         }
 
-        public void CloseUIByLayer(LayerType layerType)
+        public void CloseUIByLayer(int layerId)
         {
-            if (!_uiViewList.TryGetValue(layerType, out var list)) return;
+            if (!_uiViewList.TryGetValue(layerId, out var list)) return;
             foreach (var view in list.Where(view => view.Status is not UIStatus.Disposing))
             {
                 _uiViewCaches.Remove(view);
@@ -399,7 +408,7 @@ namespace GamePlay
         {
             foreach (var layer in _uiLayers)
             {
-                CloseUIByLayer(layer.LayerType);
+                CloseUIByLayer(layer.LayerId);
             }
             _uiViewCaches.Clear();
             _uiViewList.Clear();
@@ -419,10 +428,7 @@ namespace GamePlay
         }
 
         #endregion
-
-        /// <summary>
-        /// 初始化 UI 模块
-        /// </summary>
+        
         public UniTask<bool> Initialize()
         {
             _root = Object.FindObjectOfType<UICanvas>();
@@ -451,7 +457,7 @@ namespace GamePlay
     {
         public Type Type;
         public string Name;
-        public LayerType Layer;
+        public int Layer;
         public string Path;
         public bool IsMultiple;
         public bool IsCoexist;

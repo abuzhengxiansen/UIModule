@@ -46,8 +46,10 @@ namespace GamePlay
             EditorGUILayout.PropertyField(_scriptDesc);
             // 创建人
             EditorGUILayout.PropertyField(_creator);
-            // 层级
-            EditorGUILayout.PropertyField(_layer);
+            
+            // 层级 - 使用自定义下拉菜单
+            DrawLayerField();
+            
             // 是否允许多开
             EditorGUILayout.PropertyField(_isMultiple);
             // 是否允许共存
@@ -79,6 +81,39 @@ namespace GamePlay
             EditorGUILayout.EndHorizontal();
     
             serializedObject.ApplyModifiedProperties();
+        }
+        
+        private void DrawLayerField()
+        {
+            var layers = FindObjectOfType<UICanvas>()?.Config.layers;
+            if (layers == null)
+            {
+                EditorGUILayout.PropertyField(_layer, new GUIContent("Layer (No Settings)"));
+                EditorGUILayout.HelpBox("layers not configured in UICanvas!", MessageType.Warning);
+                return;
+            }
+
+            var layerNames = new string[layers.Count];
+            var layerIds = new List<int>();
+            for (var i = 0; i < layers.Count; i++)
+            {
+                var layer = layers[i];
+                layerNames[i] = layer.layerName;
+                layerIds.Add(layer.layerId);
+            }
+            
+            // 找到当前layer值在列表中的索引
+            var currentIndex = layerIds.IndexOf(_layer.intValue);
+            if (currentIndex < 0) currentIndex = 0;
+            
+            // 显示下拉菜单
+            var newIndex = EditorGUILayout.Popup("Layer", currentIndex, layerNames);
+            
+            // 如果选择发生变化，更新layer值
+            if (newIndex != currentIndex && newIndex >= 0 && newIndex < layerIds.Count)
+            {
+                _layer.intValue = layerIds[newIndex];
+            }
         }
         
         private bool CheckScriptInfo(UIViewBinder viewBinder)
@@ -281,7 +316,7 @@ namespace GamePlay
                    (viewBinder.isCoexist ? "IsCoexist = true, " : "") +
                    (viewBinder.isMultiple ? "IsMultiple = true, " : "") +
                    $"Path = \"{path}\", " +
-                   $"Layer = LayerType.{viewBinder.layer.ToString()} }};";
+                   $"Layer = {viewBinder.layer} }};";
         }
         
         #endregion
