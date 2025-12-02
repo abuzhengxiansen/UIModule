@@ -1,5 +1,4 @@
 ﻿using System;
-using GamePlay;
 using LiteQuark.Runtime;
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,6 +13,8 @@ namespace GamePlay
         
         private Action _showOverCallback;
         private Action _hideOverCallback;
+        private bool _useShowAnimator;
+        private bool _useHideAnimator;
         
         public void SetViewData(UIConfig config, GameObject go)
         {
@@ -22,7 +23,9 @@ namespace GamePlay
             Config = config;
             Canvas = Tf.GetComponent<Canvas>();
             Raycaster = Tf.GetComponent<GraphicRaycaster>();
+            
             AutoFilterAdaptRoot();
+            ValidateUIAnimator();
         }
         
         public void Covered(BaseView view)
@@ -108,7 +111,7 @@ namespace GamePlay
         
         protected virtual void DoShow(Action callBack)
         {
-            if (UIAnimator)
+            if (_useShowAnimator)
             {
                 _showOverCallback = callBack;
                 UIAnimator.SetTrigger("ShowUI");
@@ -150,7 +153,7 @@ namespace GamePlay
 
         protected virtual void DoHide(Action callBack)
         {
-            if (UIAnimator)
+            if (_useHideAnimator)
             {
                 _hideOverCallback = callBack;
                 UIAnimator.SetTrigger("HideUI");
@@ -163,6 +166,39 @@ namespace GamePlay
 
         protected virtual void OnHide(){}
 
+        #endregion
+        
+        #region animator
+        
+        private void ValidateUIAnimator()
+        {
+            if (!UIAnimator)
+            {
+                _useShowAnimator = false;
+                _useHideAnimator = false;
+                return;
+            }
+            
+            _useShowAnimator = HasUIAnimatorTrigger("ShowUI");
+            _useHideAnimator = HasUIAnimatorTrigger("HideUI");
+        }
+        
+        private bool HasUIAnimatorTrigger(string triggerName)
+        {
+            if (!UIAnimator || !UIAnimator.runtimeAnimatorController) return false;
+            
+            foreach (var parameter in UIAnimator.parameters)
+            {
+                if (parameter.type == AnimatorControllerParameterType.Trigger && 
+                    parameter.name == triggerName)
+                {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
         #endregion
     }
 }
