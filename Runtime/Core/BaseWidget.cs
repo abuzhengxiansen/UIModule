@@ -9,7 +9,7 @@ namespace GamePlay
 {
     public abstract class BaseWidget : ITick
     {
-        public UIStatus Status { get; set; }
+        public UIStatus Status { get; internal set; }
         public string Name { get; private set; }
         public Transform Tf { get; private set; }
         public GameObject Go { get; private set; }
@@ -33,6 +33,7 @@ namespace GamePlay
                 return customData;
             }
             
+            LiteRuntime.Get<UIModule>().LogWarn("GetCustomData failed: cannot cast to current type");
             return default;
         }
 
@@ -56,7 +57,7 @@ namespace GamePlay
 
         internal virtual void Create()
         {
-            Status = UIStatus.Opening;
+            Status = UIStatus.Created;
             _eventTag = Go.name.GetHashCode();
             GenerateAutoCode();
             OnCreate();
@@ -64,7 +65,7 @@ namespace GamePlay
         
         internal virtual void Dispose()
         {
-            Status = UIStatus.Disposing;
+            Status = UIStatus.Disposed;
             
             UnRegisterAllEvents();
             DisposeAllWidgets();
@@ -73,7 +74,7 @@ namespace GamePlay
         
         internal virtual void DisposeImmediately()
         {
-            Status = UIStatus.Sleeping;
+            Status = UIStatus.None;
 
             UIBinder.AnimOverAction = null;
             DisposePendingQueueImmediately();
@@ -88,7 +89,7 @@ namespace GamePlay
             {
                 if (i >= _widgetCacheList.Count) continue;
                 var widget = _widgetCacheList[i];
-                if (widget.Status is UIStatus.Disposing or UIStatus.Sleeping)
+                if (widget.Status is UIStatus.Disposed or UIStatus.None)
                 {
                     _widgetCacheList.RemoveAt(i);
                     continue;
@@ -101,7 +102,7 @@ namespace GamePlay
         
         internal void SetWidgetData(string name, GameObject obj, BaseWidget parent = null)
         {
-            Status = UIStatus.Sleeping;
+            Status = UIStatus.None;
             Name = name;
             Parent = parent;
             Go = obj;
@@ -148,7 +149,7 @@ namespace GamePlay
                     callback?.Invoke(null);
                     return;
                 }
-                if (Status == UIStatus.Disposing || Status == UIStatus.Sleeping || !Go)
+                if (Status == UIStatus.Disposed || Status == UIStatus.None || !Go)
                 {
                     LiteRuntime.Asset.UnloadAsset(asset);
                     callback?.Invoke(null);
@@ -223,7 +224,7 @@ namespace GamePlay
                     return;
                 }
                 
-                if (Status == UIStatus.Disposing || Status == UIStatus.Sleeping || !Go)
+                if (Status == UIStatus.Disposed || Status == UIStatus.None || !Go)
                 {
                     LiteRuntime.Asset.UnloadAsset(obj);
                     return;
@@ -238,7 +239,7 @@ namespace GamePlay
                 widget.SetWidgetData(widgetName, obj, this);
                 widget.SetCustomData(data);
                 widget.Create();
-                widget.Status = UIStatus.Showing;
+                widget.Status = UIStatus.Showed;
                 
                 _widgetCacheDict.Add(widgetName, widget);
                 _widgetCacheList.Add(widget);
@@ -281,7 +282,7 @@ namespace GamePlay
                     return;
                 }
                 
-                if (Status == UIStatus.Disposing || Status == UIStatus.Sleeping || !Go)
+                if (Status == UIStatus.Disposed || Status == UIStatus.None || !Go)
                 {
                     LiteRuntime.Asset.UnloadAsset(obj);
                     return;
@@ -296,7 +297,7 @@ namespace GamePlay
                 widget.SetWidgetData(widgetName, obj, this);
                 widget.SetCustomData(data);
                 widget.Create();
-                widget.Status = UIStatus.Showing;
+                widget.Status = UIStatus.Showed;
                 
                 _widgetCacheDict.Add(widgetName, widget);
                 _widgetCacheList.Add(widget);

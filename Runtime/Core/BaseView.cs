@@ -88,22 +88,31 @@ namespace GamePlay
 
         #region show
 
-        public void Show(Action callBack = null)
+        public void Show(bool isImmediately = false, Action<bool> callBack = null)
         {
-            Canvas.enabled = true;
+            Status = UIStatus.Showing;
             Raycaster.enabled = false;
-            
-            DoShow(() =>
+            Canvas.enabled = true;
+
+            if (isImmediately)
             {
                 ShowOver();
-                callBack?.Invoke();
-            });
+                callBack?.Invoke(true);
+            }
+            else
+            {
+                DoShow(() =>
+                {
+                    ShowOver();
+                    callBack?.Invoke(true);
+                });
+            }
         }
 
         private void ShowOver()
         {
             Raycaster.enabled = true;
-            Status = UIStatus.Showing;
+            Status = UIStatus.Showed;
             OnShow();
             
             LiteRuntime.Event.Send(new UIOperateEvent(this, UIOperateState.Opened));
@@ -128,24 +137,29 @@ namespace GamePlay
         
         #region hide
 
-        public override void CloseSelf(Action callBack = null)
+        public void Hide(bool isImmediately = false, Action callBack = null)
         {
-            LiteRuntime.Get<UIModule>().CloseUI(this, callBack);
-        }
-
-        public void Hide(Action callBack = null)
-        {
+            Status = UIStatus.Hiding;
             Raycaster.enabled = false;
-            DoHide(() =>
+            
+            if (isImmediately)
             {
                 HideOver();
                 callBack?.Invoke();
-            });
+            }
+            else
+            {
+                DoHide(() =>
+                {
+                    HideOver();
+                    callBack?.Invoke();
+                });
+            }
         }
 
         private void HideOver()
         {
-            Status = UIStatus.Hiding;
+            Status = UIStatus.Hided;
             Canvas.enabled = false;
             OnHide();
             LiteRuntime.Event.Send(new UIOperateEvent(this, UIOperateState.Closed));
@@ -165,6 +179,20 @@ namespace GamePlay
         }
 
         protected virtual void OnHide(){}
+
+        #endregion
+        
+        #region Close
+        
+        public override void CloseSelf(Action callBack = null)
+        {
+            LiteRuntime.Get<UIModule>().CloseUI(this, false, callBack);
+        }
+        
+        public void CloseImmediately(Action callBack = null)
+        {
+            LiteRuntime.Get<UIModule>().CloseUI(this, true, callBack);
+        }
 
         #endregion
         

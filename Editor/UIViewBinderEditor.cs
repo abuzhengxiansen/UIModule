@@ -21,6 +21,9 @@ namespace GamePlay
         private SerializedProperty _script;
         private SerializedProperty _scriptPath;
         private SerializedProperty _showRulesFoldout;
+        
+        private string[] _layerNames;
+        private List<int> _layerIds;
     
         private void OnEnable()
         {
@@ -34,6 +37,19 @@ namespace GamePlay
             _isCoexist = serializedObject.FindProperty("isCoexist");
             _script = serializedObject.FindProperty("script");
             _showRulesFoldout = serializedObject.FindProperty("showRulesFoldout");
+            
+            var layers = FindObjectOfType<UICanvas>()?.Config.layers;
+            if (layers != null)
+            {
+                _layerNames = new string[layers.Count];
+                _layerIds = new List<int>();
+                for (var i = 0; i < layers.Count; i++)
+                {
+                    var layer = layers[i];
+                    _layerNames[i] = layer.layerName;
+                    _layerIds.Add(layer.layerId);
+                }
+            }
         }
     
         public override void OnInspectorGUI()
@@ -85,34 +101,24 @@ namespace GamePlay
         
         private void DrawLayerField()
         {
-            var layers = FindObjectOfType<UICanvas>()?.Config.layers;
-            if (layers == null)
+            if (_layerNames == null || _layerIds == null)
             {
                 EditorGUILayout.PropertyField(_layer, new GUIContent("Layer (No Settings)"));
                 EditorGUILayout.HelpBox("layers not configured in UICanvas!", MessageType.Warning);
                 return;
             }
-
-            var layerNames = new string[layers.Count];
-            var layerIds = new List<int>();
-            for (var i = 0; i < layers.Count; i++)
-            {
-                var layer = layers[i];
-                layerNames[i] = layer.layerName;
-                layerIds.Add(layer.layerId);
-            }
             
             // 找到当前layer值在列表中的索引
-            var currentIndex = layerIds.IndexOf(_layer.intValue);
+            var currentIndex = _layerIds.IndexOf(_layer.intValue);
             if (currentIndex < 0) currentIndex = 0;
             
             // 显示下拉菜单
-            var newIndex = EditorGUILayout.Popup("Layer", currentIndex, layerNames);
+            var newIndex = EditorGUILayout.Popup("Layer", currentIndex, _layerNames);
             
             // 如果选择发生变化，更新layer值
-            if (newIndex != currentIndex && newIndex >= 0 && newIndex < layerIds.Count)
+            if (newIndex != currentIndex && newIndex >= 0 && newIndex < _layerIds.Count)
             {
-                _layer.intValue = layerIds[newIndex];
+                _layer.intValue = _layerIds[newIndex];
             }
         }
         
@@ -208,29 +214,51 @@ namespace GamePlay
         
         private const string UIConfigName = "UIConfigs.cs";
         private const string UIConfigsContent = @"using System;
-using LiteQuark.Runtime;
+using Cysharp.Threading.Tasks;
 
 namespace GamePlay
 {
     public static class UIConfigExtensions
     {
-        private static UIModule _uiModule;
-        public static void OpenUI(this UIConfig config, ICustomUIData data = null, Action callback = null)
+        public static void OpenUI(this UIConfig config, ICustomUIData data = null, Action<bool> callback = null)
         {
-            if (_uiModule == null)
-            {
-                _uiModule = LiteRuntime.Get<UIModule>();
-            }
-            _uiModule.OpenUI(config, data, callback);
+            UIModule.Instance.OpenUI(config, data, false, callback);
+        }
+        
+        public static void OpenUIImmediately(this UIConfig config, ICustomUIData data = null, Action<bool> callback = null)
+        {
+            UIModule.Instance.OpenUI(config, data, true, callback);
+        }
+        
+        public static UniTask<bool> OpenUIAsync(this UIConfig config, ICustomUIData data = null)
+        {
+            return UIModule.Instance.OpenUIAsync(config, data, false);
+        }
+        
+        public static UniTask<bool> OpenUIImmediatelyAsync(this UIConfig config, ICustomUIData data = null)
+        {
+            return UIModule.Instance.OpenUIAsync(config, data, true);
         }
         
         public static void CloseUI(this UIConfig config, Action callback = null)
         {
-            if (_uiModule == null)
-            {
-                _uiModule = LiteRuntime.Get<UIModule>();
-            }
-            _uiModule.CloseUI(config.Type, callback);
+            var uiView = UIModule.Instance.GetUI(config.Type);
+            if (uiView == null || uiView.Status == UIStatus.Disposed) return;
+            
+            UIModule.Instance.CloseUI(uiView, false, callback);
+        }
+        
+        public static void CloseUIImmediately(this UIConfig config, Action callback = null)
+        {
+            var uiView = UIModule.Instance.GetUI(config.Type);
+            if (uiView == null || uiView.Status == UIStatus.Disposed) return;
+            
+            UIModule.Instance.CloseUI(uiView, true, callback);
+        }
+
+        public static BaseView GetUI(this UIConfig config)
+        {
+            return UIModule.Instance.GetUI(config.Type);
         }
     }
 

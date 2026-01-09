@@ -44,7 +44,7 @@ namespace GamePlay
                 while (currentNode != null)
                 {
                     var view = currentNode.Value;
-                    if (view.Status != UIStatus.Sleeping && view.Status != UIStatus.Disposing) 
+                    if (view.Status != UIStatus.None && view.Status != UIStatus.Disposed) 
                     {
                         view.Tick(deltaTime);
                     }
@@ -111,54 +111,91 @@ namespace GamePlay
             return layer;
         }
         
-        private void CreateUIObjAsync(string path, int layerId, Action<GameObject> callback)
+        private void CreateUIObj(string path, int layerId, Action<GameObject> callback)
         {
-            var layer = GetLayer(layerId);
-            LiteRuntime.Asset.InstantiateAsync(path, layer.LayerTransform, (uiObj) =>
+            try
             {
-                if (!uiObj)
+                var layer = GetLayer(layerId);
+                if (layer == null)
                 {
+                    LogError($"CreateUIObjAsync failed: Layer {layerId} not found");
                     callback?.Invoke(null);
                     return;
                 }
                 
-                var canvas = uiObj.GetComponent<Canvas>();
-                canvas.sortingLayerName = "UI";
-                canvas.enabled = false;
+                LiteRuntime.Asset.InstantiateAsync(path, layer.LayerTransform, (uiObj) =>
+                {
+                    if (!uiObj)
+                    {
+                        callback?.Invoke(null);
+                        return;
+                    }
                 
-                callback?.Invoke(uiObj);
-            });
+                    var canvas = uiObj.GetComponent<Canvas>();
+                    canvas.sortingLayerName = "UI";
+                    canvas.enabled = false;
+                
+                    callback?.Invoke(uiObj);
+                });
+            }
+            catch (Exception e)
+            {
+                LogError($"CreateUIObjAsync failed: {e.Message}\n{e.StackTrace}");
+                callback?.Invoke(null);
+            }
         }
 
         private BaseView CreateUIView(UIConfig config, GameObject uiObj)
         {
             var uiView = Activator.CreateInstance(config.Type) as BaseView;
+            if (uiView != null)
+            {
+                uiView.Status = UIStatus.Creating;
+            }
             uiView?.SetViewData(config, uiObj);
             _uiViewCaches.Add(uiView);
             return uiView;
         }
         
-        private void OpenUIAsync(UIConfig config, ICustomUIData data, Action callback = null)
+        private void CreateUIToOpen(UIConfig config, ICustomUIData data, bool isImmediately = false, Action<bool> callback = null)
         {
-            LiteRuntime.Event.Send(new UIOperateEvent(config.Type, config.Name, UIOperateState.PrepareCreate));
-            
-            CreateUIObjAsync(config.Path, config.Layer, (uiObj) =>
+            try
             {
-                if (!uiObj)
+                LiteRuntime.Event.Send(new UIOperateEvent(config.Type, config.Name, UIOperateState.PrepareCreate));
+            
+                CreateUIObj(config.Path, config.Layer, (uiObj) =>
                 {
-                    LogWarn($"OpenUIAsync failed: {config.Type.Name} prefab not found at {config.Path}");
-                    return;
-                }
+                    if (!uiObj)
+                    {
+                        LogWarn($"OpenUIAsync failed: {config.Type.Name} prefab not found at {config.Path}");
+                        callback?.Invoke(false);
+                        return;
+                    }
                 
-                var uiView = CreateUIView(config, uiObj);
-                LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Created));
-                InternalOpenUI(uiView, data, callback);
-            });
+                    var uiView = CreateUIView(config, uiObj);
+                    LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Created));
+                    ShowUI(uiView, data, isImmediately, callback);
+                });
+            }
+            catch (Exception e)
+            {
+                LogError($"OpenUIAsync failed for {config.Name}: {e.Message}\n{e.StackTrace}");
+                callback?.Invoke(false);
+            }
         }
         
-        private void InternalOpenUI(BaseView view, ICustomUIData data, Action callback = null)
+        private void ShowUI(BaseView view, ICustomUIData data = null, bool isImmediately = false, Action<bool> callback = null)
         {
-            view.SetCustomData(data);
+            if (view == null)
+            {
+                callback?.Invoke(false);
+                return;
+            }
+                
+            if (data != null)
+            {
+                view.SetCustomData(data);
+            }
          
             LiteRuntime.Event.Send(new UIOperateEvent(view, UIOperateState.PrepareOpen));
             
@@ -171,20 +208,33 @@ namespace GamePlay
                 PushStack(view);
             }
             
-            if (view.Status == UIStatus.Sleeping)
+            if (view.Status == UIStatus.None)
             {
                 view.Create();
             }
-            view.Show(callback);
+            if (view.Status == UIStatus.Showed)
+            {
+                callback?.Invoke(true);
+            }
+            else
+            {
+                view.Show(isImmediately, callback);
+            }
         }
 
-        private void InternalCloseUI(BaseView uiView, Action callback = null)
+        private void HideUI(BaseView uiView, bool isImmediately = false, Action callback = null)
         {
+            if (uiView == null)
+            {
+                callback?.Invoke();
+                return;
+            }
+            
             LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.PrepareClose));
             
-            if (uiView.Status == UIStatus.Showing)
+            if (uiView.Status == UIStatus.Showed)
             {
-                uiView.Hide(() =>
+                uiView.Hide(isImmediately, () =>
                 {
                     DestroyUI(uiView, callback);
                 });
@@ -217,6 +267,12 @@ namespace GamePlay
         
         private void DestroyUI(BaseView uiView, Action callback = null)
         {
+            if (uiView == null)
+            {
+                callback?.Invoke();
+                return;
+            }
+            
             LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Closed));
             _uiViewCaches.Remove(uiView);
             PopStack(uiView);
@@ -278,74 +334,97 @@ namespace GamePlay
             
         }
 
-        public void OpenUI(UIConfig config, ICustomUIData data, Action callback = null)
-        {
-            var layer = config.Layer;
-            var topView = GetTopUI(layer);
+        #region Open
 
-            var uiView = GetUI(config.Type);
-            if (config.IsMultiple || uiView == null)
+        public void OpenUI(UIConfig config, ICustomUIData data, bool isImmediately, Action<bool> callback = null)
+        {
+            try
             {
-                if (!config.IsCoexist && topView != null)
+                var layer = config.Layer;
+                var topView = GetTopUI(layer);
+
+                var uiView = GetUI(config.Type);
+                if (config.IsMultiple || uiView == null)
                 {
-                    topView.Hide(() =>
+                    if (!config.IsCoexist && topView != null)
                     {
-                        OpenUIAsync(config, data, callback);
-                    });
+                        topView.Hide(false, () =>
+                        {
+                            CreateUIToOpen(config, data, false, callback);
+                        });
+                    }
+                    else
+                    {
+                        CreateUIToOpen(config, data, false, callback);
+                    }
+                }
+                else if (topView != null && topView == uiView)
+                {
+                    LogWarn($"OpenUI: {config.Name} is already the top view can't open");
+                    callback?.Invoke(false);
                 }
                 else
                 {
-                    OpenUIAsync(config, data, callback);
-                }
-            }
-            else if (topView != null && topView == uiView)
-            {
-                InternalOpenUI(uiView, data, callback);
-            }
-            else
-            {
-                if (!config.IsCoexist && topView != null)
-                {
-                    topView.Hide(() =>
+                    if (!config.IsCoexist && topView != null)
                     {
-                        InternalOpenUI(uiView, data, callback);
-                    });
+                        topView.Hide(false, () =>
+                        {
+                            ShowUI(uiView, data, false, callback);
+                        });
+                    }
+                    else if (uiView.Status == UIStatus.Showed)
+                    {
+                        uiView.Hide(false, () =>
+                        {
+                            ShowUI(uiView, data, false, callback);
+                        });
+                    }
+                    else
+                    {
+                        ShowUI(uiView, data, false, callback);
+                    }
                 }
-                else
-                {
-                    InternalOpenUI(uiView, data, callback);
-                }
+            }
+            catch (Exception e)
+            {
+                LogError($"OpenUI failed for {config.Name}: {e.Message}\n{e.StackTrace}");
+                callback?.Invoke(false);
             }
         }
         
-        public void CloseUI(Type type, Action callback = null)
+        public async UniTask<bool> OpenUIAsync(UIConfig config, ICustomUIData data, bool isImmediately = false)
         {
-            var uiView = GetUI(type);
+            var tcs = new UniTaskCompletionSource<bool>();
             
-            if (uiView == null || uiView.Status == UIStatus.Disposing) return;
-
-            if (uiView.Config.IsMultiple)
+            OpenUI(config, data, isImmediately, (success) =>
             {
-                LogWarn("CloseUI failed: Cannot close multiple instance UI by type.");
-                return;
-            }
-
-            CloseUI(uiView, callback);
+                tcs.TrySetResult(success);
+            });
+            
+            return await tcs.Task;
         }
 
-        public void CloseUI(BaseView view, Action callback = null)
+        #endregion
+
+        #region Close
+
+        public void CloseUI(BaseView view, bool isImmediately = false, Action callback = null)
         {
-            InternalCloseUI(view, () =>
+            HideUI(view, isImmediately, () =>
             {
                 var topView = GetTopUI(view.Config.Layer);
-                if (topView != null && topView.Status != UIStatus.Showing)
+                if (topView != null && topView.Status != UIStatus.Showed)
                 {
                     topView.Show();
                 }
                 callback?.Invoke();
             });
         }
-        
+
+        #endregion
+
+        #region GetUI
+
         public BaseView GetTopUI(int layerId = -1)
         {
             if (layerId == -1)
@@ -370,31 +449,47 @@ namespace GamePlay
             return null;
         }
         
+        public BaseView GetUI(Type type)
+        {
+            var uiName = type.Name;
+            var uiView = _uiViewCaches.FirstOrDefault(cache => cache.Name == uiName);
+            if (uiView == null) return null;
+
+            if (uiView.Config.IsMultiple)
+            {
+                if (!_uiViewList.TryGetValue(uiView.Config.Layer, out var list)) return null;
+                uiView = list.LastOrDefault(view => view.Name == uiName);
+            }
+            
+            return uiView;
+        }
+        
+        public BaseView GetUI(string name)
+        {
+            var uiView = _uiViewCaches.FirstOrDefault(cache => cache.Name == name);
+            if (uiView == null) return null;
+
+            if (uiView.Config.IsMultiple)
+            {
+                if (!_uiViewList.TryGetValue(uiView.Config.Layer, out var list)) return null;
+                uiView = list.LastOrDefault(view => view.Name == name);
+            }
+            
+            return uiView;
+        }
+        
         public T GetUI<T>() where T : BaseView
         {
             var uiView = GetUI(typeof(T));
             return uiView as T;
         }
 
-        public BaseView GetUI(Type type)
-        {
-            var uiName = type.Name;
-            var uiView = _uiViewCaches.FirstOrDefault(cache => cache.Name == uiName);
-            if (uiView == null) return null;
-            if (!_uiViewList.TryGetValue(uiView.Config.Layer, out var list)) return null;
-            uiView = list.FirstOrDefault(view => view.Name == uiName);
-            return uiView;
-        }
-        
-        public BaseView GetUI(string name)
-        {
-            return _uiViewCaches.FirstOrDefault(view => view.Name == name);
-        }
+        #endregion
 
         public void CloseUIByLayer(int layerId)
         {
             if (!_uiViewList.TryGetValue(layerId, out var list)) return;
-            foreach (var view in list.Where(view => view.Status is not UIStatus.Disposing))
+            foreach (var view in list.Where(view => view.Status is not UIStatus.Disposed))
             {
                 _uiViewCaches.Remove(view);
                 _pendingDisposeViewQueue.Enqueue(view);
@@ -428,6 +523,8 @@ namespace GamePlay
         }
 
         #endregion
+        
+        public static UIModule Instance => LiteRuntime.Get<UIModule>();
         
         public UniTask<bool> Initialize()
         {
