@@ -415,9 +415,15 @@ namespace GamePlay
                 var topView = GetTopUI(view.Config.Layer);
                 if (topView != null && topView.Status != UIStatus.Showed)
                 {
-                    topView.Show();
+                    topView.Show(isImmediately, b =>
+                    {
+                        callback?.Invoke();
+                    });
                 }
-                callback?.Invoke();
+                else
+                {
+                    callback?.Invoke();
+                }
             });
         }
 

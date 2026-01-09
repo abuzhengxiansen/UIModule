@@ -66,8 +66,6 @@ namespace GamePlay
         internal virtual void Dispose()
         {
             Status = UIStatus.Disposed;
-            
-            UnRegisterAllEvents();
             DisposeAllWidgets();
             OnDispose();
         }
@@ -77,6 +75,7 @@ namespace GamePlay
             Status = UIStatus.None;
 
             UIBinder.AnimOverAction = null;
+            UnRegisterAllEvents();
             DisposePendingQueueImmediately();
             UnloadAllAssets();
         }
