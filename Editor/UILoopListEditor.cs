@@ -1,86 +1,156 @@
-using GamePlay.Editor;
+﻿using GamePlay.Editor;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 
 namespace UnityEngine.UI
 {
     [CustomEditor(typeof(UILoopList))]
-    public class UILoopListEditor : UnityEditor.UI.ScrollRectEditor
+    public class UILoopListEditor : UnityEditor.Editor
     {
-        private UILoopList _Target;
-        private SerializedProperty _ItemSize;
-        private SerializedProperty _Direction;
-        private SerializedProperty _ReverseArrangement;
-        private SerializedProperty _IsDynamicSize;
-        private SerializedProperty _Padding;
-        private SerializedProperty _Spacing;
+        private SerializedProperty _template;
+        private SerializedProperty _content;
+        private SerializedProperty _direction;
+        private SerializedProperty _reverseDirection;
+        private SerializedProperty _snapMode;
+        private SerializedProperty _padding;
+        private SerializedProperty _spacing;
+        private SerializedProperty _scrollSensitivity;
+        private SerializedProperty _decelerationRate;
+        private SerializedProperty _elasticity;
 
-        protected override void OnEnable()
+        private void OnEnable()
         {
-            base.OnEnable();
-
-            _Target = target as UILoopList;
-            _ItemSize = serializedObject.FindProperty("itemSize");
-            _Direction = serializedObject.FindProperty("direction");
-            _ReverseArrangement = serializedObject.FindProperty("reverseArrangement");
-            _IsDynamicSize = serializedObject.FindProperty("isDynamicSize");
-            _Padding = serializedObject.FindProperty("padding");
-            _Spacing = serializedObject.FindProperty("spacing");
+            _template = serializedObject.FindProperty("template");
+            _content = serializedObject.FindProperty("content");
+            _direction = serializedObject.FindProperty("direction");
+            _reverseDirection = serializedObject.FindProperty("reverseDirection");
+            _snapMode = serializedObject.FindProperty("snapMode");
+            _padding = serializedObject.FindProperty("padding");
+            _spacing = serializedObject.FindProperty("spacing");
+            _scrollSensitivity = serializedObject.FindProperty("scrollSensitivity");
+            _decelerationRate = serializedObject.FindProperty("decelerationRate");
+            _elasticity = serializedObject.FindProperty("elasticity");
         }
 
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
-            base.OnInspectorGUI();
 
-            EditorGUILayout.PropertyField(_ItemSize, new GUIContent("TemplateCell"));
-            EditorGUILayout.PropertyField(_Direction, new GUIContent("Direction"));
-            EditorGUILayout.PropertyField(_ReverseArrangement, new GUIContent("Reverse Arrangement"));
-            EditorGUILayout.PropertyField(_IsDynamicSize, new GUIContent("Dynamic Size"));
-            EditorGUILayout.PropertyField(_Padding, new GUIContent("Padding"));
-            EditorGUILayout.PropertyField(_Spacing, new GUIContent("Spacing"));
+            // Template
+            EditorGUILayout.PropertyField(_template, new GUIContent("Template", "元素预制体，可以通过Init方法动态传入"));
+            
+            // Content
+            EditorGUILayout.PropertyField(_content, new GUIContent("Content", "元素容器，必须设置"));
+            
+            EditorGUILayout.Space(5);
+            
+            // Direction
+            EditorGUILayout.PropertyField(_direction, new GUIContent("Direction", "滚动方向"));
+            
+            // Reverse Direction
+            EditorGUILayout.PropertyField(_reverseDirection, new GUIContent("Reverse Direction", "是否反方向排布，自上向下与自右向左为正方向"));
+            
+            // Snap Mode
+            EditorGUILayout.PropertyField(_snapMode, new GUIContent("Snap Mode", "是否启用磁吸模式，启用后滚动停止时会自动对齐到最近的元素位置"));
+            
+            EditorGUILayout.Space(5);
+            
+            // Padding
+            EditorGUILayout.PropertyField(_padding, new GUIContent("Padding", "内容边距"));
+            
+            // Spacing
+            EditorGUILayout.PropertyField(_spacing, new GUIContent("Spacing", "元素间距"));
+            
+            EditorGUILayout.Space(5);
+            
+            // Scroll Sensitivity
+            EditorGUILayout.PropertyField(_scrollSensitivity, new GUIContent("Scroll Sensitivity", "对滚轮和触控板滚动事件的敏感性，值越大越敏感"));
+            
+            // Deceleration Rate with toggle
+            EditorGUILayout.BeginHorizontal();
+            var hasInertia = _decelerationRate.floatValue > 0f;
+            var newHasInertia = EditorGUILayout.Toggle(hasInertia, GUILayout.Width(14));
+            if (newHasInertia != hasInertia)
+            {
+                _decelerationRate.floatValue = newHasInertia ? 0.135f : 0f;
+            }
+            
+            EditorGUI.BeginDisabledGroup(!newHasInertia);
+            EditorGUILayout.PropertyField(_decelerationRate, new GUIContent("Inertia", "惯性衰减速度，值越大衰减越快，0为无惯性效果"));
+            EditorGUI.EndDisabledGroup();
+            EditorGUILayout.EndHorizontal();
+            
+            // Elasticity with toggle
+            EditorGUILayout.BeginHorizontal();
+            var hasElasticity = _elasticity.floatValue > 0f;
+            var newHasElasticity = EditorGUILayout.Toggle(hasElasticity, GUILayout.Width(14));
+            if (newHasElasticity != hasElasticity)
+            {
+                _elasticity.floatValue = newHasElasticity ? 0.1f : 0f;
+            }
+            
+            EditorGUI.BeginDisabledGroup(!newHasElasticity);
+            EditorGUILayout.PropertyField(_elasticity, new GUIContent("Elasticity", "回弹时间，值越小回弹越快，0为无弹性效果"));
+            EditorGUI.EndDisabledGroup();
+            EditorGUILayout.EndHorizontal();
 
             serializedObject.ApplyModifiedProperties();
         }
 
-        [MenuItem("GameObject/FrameworkUI/UILoopList", false, 8)]
+        [MenuItem("GameObject/FrameworkUI/UILoopList", false, 5)]
         private static void CreateCustomLoopList()
         {
-            // Create the core object
-            var loopList = new GameObject("@UILoopList");
+            // 创建根节点
+            var loopList = new GameObject("@LoopList");
             Undo.RegisterCreatedObjectUndo(loopList, "Create Custom LoopList");
 
-            // Set parent-child relationship
+            // 设置父子关系
             var parent = Selection.activeGameObject;
             if (parent == null)
             {
                 var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
-                if (prefabStage == null)
+                if (prefabStage != null)
                 {
-                    Debug.LogWarning("No GameObject selected and no prefab stage open. Please select a GameObject or open a prefab stage.");
-                    return;
+                    parent = prefabStage.prefabContentsRoot;
                 }
-                parent = prefabStage.prefabContentsRoot;
             }
-            GameObjectUtility.SetParentAndAlign(loopList, parent);
+            
+            if (parent != null)
+            {
+                GameObjectUtility.SetParentAndAlign(loopList, parent);
+            }
 
-            // Add necessary components
+            // 添加RectTransform
             loopList.AddComponent<RectTransform>();
-            var list = loopList.AddComponent<UILoopList>();
-            UIModuleEditorUtils.ApplyPreset(list, "UILoopList");
+            // 添加UILoopList组件
+            var loopListComponent = loopList.AddComponent<UILoopList>();
+            UIModuleEditorUtils.ApplyPreset(loopListComponent, "UILoopList");
             
-            var image = loopList.AddComponent<Empty4Raycast>();
-            var mask = loopList.AddComponent<RectMask2D>();
+            // 添加RectMask2D
+            loopList.AddComponent<RectMask2D>();
             
-            // Add Content object
+            // 添加Empty4Raycast
+            loopList.AddComponent<Empty4Raycast>();
+
+            // 创建Content子节点
             var content = new GameObject("Content");
             Undo.RegisterCreatedObjectUndo(content, "Create Content");
             GameObjectUtility.SetParentAndAlign(content, loopList);
+            
             var contentRect = content.AddComponent<RectTransform>();
-            list.content = contentRect;
 
-            // Mark scene as modified
+            // 将Content设置为UILoopList的content属性
+            var serializedObject = new SerializedObject(loopListComponent);
+            var contentProperty = serializedObject.FindProperty("content");
+            contentProperty.objectReferenceValue = contentRect;
+            serializedObject.ApplyModifiedProperties();
+
+            // 选中创建的对象
+            Selection.activeGameObject = loopList;
+
+            // 标记场景为已修改
             EditorSceneManager.MarkSceneDirty(loopList.scene);
         }
     }
 }
+
