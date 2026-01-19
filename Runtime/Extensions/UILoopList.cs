@@ -28,9 +28,6 @@ namespace UnityEngine.UI
         // 反转排布
         [SerializeField, Tooltip("是否反方向排布，自上向下与自右向左为正方向")]
         private bool reverseDirection;
-        // 磁吸模式
-        [SerializeField, Tooltip("是否启用磁吸模式，启用后滚动停止时会自动对齐到最近的元素位置")]
-        private bool snapMode;
         
         // 布局属性
         [SerializeField]
@@ -41,6 +38,9 @@ namespace UnityEngine.UI
         // 滚轮敏感度
         [SerializeField, Tooltip("对滚轮和触控板滚动事件的敏感性，值越大越敏感")]
         private float scrollSensitivity = 1f;
+        // 磁吸模式
+        [SerializeField, Tooltip("是否启用磁吸模式，启用后滚动停止时会自动对齐到最近的元素位置的平滑时间")]
+        private float snapTime;
         // 惯性衰减速度
         [SerializeField, Tooltip("惯性衰减速度，值越大衰减越快，0为无惯性效果")]
         private float decelerationRate = 0.135f;
@@ -399,7 +399,7 @@ namespace UnityEngine.UI
             {
                 _isInertia = true;
             }
-            else if (snapMode && !_isElasticity && _totalCount > 0)
+            else if (snapTime > 0 && !_isElasticity && _totalCount > 0)
             {
                 // 无惯性时且不超边界，直接启动磁吸对齐
                 StartSnapping();
@@ -453,7 +453,7 @@ namespace UnityEngine.UI
                 _isElasticity = true;
             }
             // 如果开启了磁吸，启动磁吸对齐
-            else if (snapMode && !IsOutOfBounds())
+            else if (snapTime > 0 && !IsOutOfBounds())
             {
                 StartSnapping();
             }
@@ -589,7 +589,7 @@ namespace UnityEngine.UI
                 new Vector2(newPosition, content.anchoredPosition.y);
             
             // 如果开启了磁吸模式且不会超出边界，开始向目标平滑过渡
-            if (snapMode && _totalCount > 0 && !willBeOutOfBounds && Mathf.Abs(_velocity) < 500f)
+            if (snapTime > 0 && _totalCount > 0 && !willBeOutOfBounds && Mathf.Abs(_velocity) < 500f)
             {
                 // 找到最近的元素
                 var nearestIndex = GetNearestItemIndex();
@@ -642,7 +642,7 @@ namespace UnityEngine.UI
                     _isElasticity = true;
                 }
                 // 如果开启了磁吸模式且没有超出边界，启动磁吸对齐
-                else if (snapMode && _totalCount > 0 && !IsOutOfBounds())
+                else if (snapTime > 0 && _totalCount > 0 && !IsOutOfBounds())
                 {
                     StartSnapping();
                 }
@@ -785,7 +785,7 @@ namespace UnityEngine.UI
         /// </summary>
         private void StartSnapping()
         {
-            if (!snapMode || _totalCount == 0) return;
+            if (snapTime <= 0 || _totalCount == 0) return;
             
             // 找到最近的元素
             _snapTargetIndex = GetNearestItemIndex();
@@ -831,9 +831,8 @@ namespace UnityEngine.UI
                 return;
             }
             
-            // 使用SmoothDamp实现平滑对齐，利用现有的速度进行平滑过渡
-            var smoothTime = 0.2f; // 对齐时间固定为0.2秒
-            var newPos = Mathf.SmoothDamp(currentPosition, targetPosition, ref _velocity, smoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
+            // 使用snapTime实现平滑对齐，利用现有的速度进行平滑过渡
+            var newPos = Mathf.SmoothDamp(currentPosition, targetPosition, ref _velocity, snapTime, Mathf.Infinity, Time.unscaledDeltaTime);
             
             content.anchoredPosition = direction == Direction.Vertical ?
                 new Vector2(content.anchoredPosition.x, newPos) :
@@ -991,8 +990,8 @@ namespace UnityEngine.UI
             // 添加一些缓冲区域，提前加载即将进入视野的元素
             var buffer = _itemSizeSpacing;
             
-            var vMin = viewportMin + buffer;
-            var vMax = viewportMax - buffer;
+            var vMin = viewportMin + (reverseDirection ? -buffer : buffer);
+            var vMax = viewportMax + (reverseDirection ? buffer : -buffer);
             return itemMax >= vMin && itemPos <= vMax;
         }
         
@@ -1007,16 +1006,12 @@ namespace UnityEngine.UI
             if (direction == Direction.Vertical)
             {
                 return reverseDirection ?
-                    // 从下往上：viewport底部对应contentPos.y
-                    (contentPos.y, contentPos.y + viewportSize) :
-                    // 从上往下：viewport顶部对应-contentPos.y
+                    (-contentPos.y, viewportSize - contentPos.y) :
                     (-contentPos.y - viewportSize, -contentPos.y);
             }
 
             return reverseDirection ?
-                // 从左往右：viewport左侧对应contentPos.x
-                (contentPos.x, contentPos.x + viewportSize) :
-                // 从右往左：viewport右侧对应-contentPos.x - viewportSize
+                (-contentPos.x, viewportSize - contentPos.x) :
                 (-contentPos.x - viewportSize, -contentPos.x);
         }
         
@@ -1038,7 +1033,7 @@ namespace UnityEngine.UI
                 
                 widget.SetWidgetData("loopItem" + index, go);
                 widget.Create();
-                widget.Status = UIStatus.Showing;
+                widget.Status = UIStatus.Showed;
                 
                 AdaptItemTransform(widget.Rect);
                 

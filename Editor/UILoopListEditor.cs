@@ -11,7 +11,7 @@ namespace UnityEngine.UI
         private SerializedProperty _content;
         private SerializedProperty _direction;
         private SerializedProperty _reverseDirection;
-        private SerializedProperty _snapMode;
+        private SerializedProperty _snapTime;
         private SerializedProperty _padding;
         private SerializedProperty _spacing;
         private SerializedProperty _scrollSensitivity;
@@ -24,10 +24,10 @@ namespace UnityEngine.UI
             _content = serializedObject.FindProperty("content");
             _direction = serializedObject.FindProperty("direction");
             _reverseDirection = serializedObject.FindProperty("reverseDirection");
-            _snapMode = serializedObject.FindProperty("snapMode");
             _padding = serializedObject.FindProperty("padding");
             _spacing = serializedObject.FindProperty("spacing");
             _scrollSensitivity = serializedObject.FindProperty("scrollSensitivity");
+            _snapTime = serializedObject.FindProperty("snapTime");
             _decelerationRate = serializedObject.FindProperty("decelerationRate");
             _elasticity = serializedObject.FindProperty("elasticity");
         }
@@ -50,9 +50,6 @@ namespace UnityEngine.UI
             // Reverse Direction
             EditorGUILayout.PropertyField(_reverseDirection, new GUIContent("Reverse Direction", "是否反方向排布，自上向下与自右向左为正方向"));
             
-            // Snap Mode
-            EditorGUILayout.PropertyField(_snapMode, new GUIContent("Snap Mode", "是否启用磁吸模式，启用后滚动停止时会自动对齐到最近的元素位置"));
-            
             EditorGUILayout.Space(5);
             
             // Padding
@@ -66,7 +63,19 @@ namespace UnityEngine.UI
             // Scroll Sensitivity
             EditorGUILayout.PropertyField(_scrollSensitivity, new GUIContent("Scroll Sensitivity", "对滚轮和触控板滚动事件的敏感性，值越大越敏感"));
             
-            // Deceleration Rate with toggle
+            EditorGUILayout.BeginHorizontal();
+            var hasSnap = _snapTime.floatValue > 0f;
+            var newHasSnap = EditorGUILayout.Toggle(hasSnap, GUILayout.Width(14));
+            if (newHasSnap != hasSnap)
+            {
+                _snapTime.floatValue = newHasSnap ? 0.2f : 0f;
+            }
+            
+            EditorGUI.BeginDisabledGroup(!newHasSnap);
+            EditorGUILayout.PropertyField(_snapTime, new GUIContent("Snap Time", "磁吸模式滚动停止时会自动对齐到最近的元素位置的平滑时间"));
+            EditorGUI.EndDisabledGroup();
+            EditorGUILayout.EndHorizontal();
+            
             EditorGUILayout.BeginHorizontal();
             var hasInertia = _decelerationRate.floatValue > 0f;
             var newHasInertia = EditorGUILayout.Toggle(hasInertia, GUILayout.Width(14));
@@ -80,7 +89,6 @@ namespace UnityEngine.UI
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();
             
-            // Elasticity with toggle
             EditorGUILayout.BeginHorizontal();
             var hasElasticity = _elasticity.floatValue > 0f;
             var newHasElasticity = EditorGUILayout.Toggle(hasElasticity, GUILayout.Width(14));
