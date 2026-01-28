@@ -34,4 +34,3 @@
 ### 新增
 - 新增UI配置批量化操作
 - `Tools/UI/Regenerate UIConfigs`菜单项，根据选中目录预制体生成UI配置项
-- `Tools/UI/Update Prefab Layers`菜单项，根据UI配置项更新预制体层级序列化数据
