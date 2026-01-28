@@ -23,7 +23,6 @@ namespace GamePlay
         private SerializedProperty _showRulesFoldout;
         
         private string[] _layerNames;
-        private List<int> _layerIds;
     
         private void OnEnable()
         {
@@ -38,17 +37,10 @@ namespace GamePlay
             _script = serializedObject.FindProperty("script");
             _showRulesFoldout = serializedObject.FindProperty("showRulesFoldout");
             
-            var layers = FindObjectOfType<UICanvas>()?.Config.layers;
-            if (layers != null)
+            var layers = FindObjectOfType<UICanvas>()?.Config?.layers;
+            if (layers != null && layers.Count > 0)
             {
-                _layerNames = new string[layers.Count];
-                _layerIds = new List<int>();
-                for (var i = 0; i < layers.Count; i++)
-                {
-                    var layer = layers[i];
-                    _layerNames[i] = layer.layerName;
-                    _layerIds.Add(layer.layerId);
-                }
+                _layerNames = layers.ToArray();
             }
         }
     
@@ -101,7 +93,7 @@ namespace GamePlay
         
         private void DrawLayerField()
         {
-            if (_layerNames == null || _layerIds == null)
+            if (_layerNames == null || _layerNames.Length == 0)
             {
                 EditorGUILayout.PropertyField(_layer, new GUIContent("Layer (No Settings)"));
                 EditorGUILayout.HelpBox("layers not configured in UICanvas!", MessageType.Warning);
@@ -109,16 +101,16 @@ namespace GamePlay
             }
             
             // 找到当前layer值在列表中的索引
-            var currentIndex = _layerIds.IndexOf(_layer.intValue);
+            var currentIndex = System.Array.IndexOf(_layerNames, _layer.stringValue);
             if (currentIndex < 0) currentIndex = 0;
             
             // 显示下拉菜单
             var newIndex = EditorGUILayout.Popup("Layer", currentIndex, _layerNames);
             
             // 如果选择发生变化，更新layer值
-            if (newIndex != currentIndex && newIndex >= 0 && newIndex < _layerIds.Count)
+            if (newIndex != currentIndex && newIndex >= 0 && newIndex < _layerNames.Length)
             {
-                _layer.intValue = _layerIds[newIndex];
+                _layer.stringValue = _layerNames[newIndex];
             }
         }
         
@@ -344,7 +336,7 @@ namespace GamePlay
                    (viewBinder.isCoexist ? "IsCoexist = true, " : "") +
                    (viewBinder.isMultiple ? "IsMultiple = true, " : "") +
                    $"Path = \"{path}\", " +
-                   $"Layer = {viewBinder.layer} }};";
+                   $"Layer = \"{viewBinder.layer}\" }};";
         }
         
         #endregion

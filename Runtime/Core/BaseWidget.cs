@@ -99,13 +99,17 @@ namespace GamePlay
             OnUpdate(deltaTime);
         }
         
-        internal void SetWidgetData(string name, GameObject obj, BaseWidget parent = null)
+        internal void SetWidgetData(string name, BaseWidget parent = null)
         {
-            Status = UIStatus.None;
+            Status = UIStatus.Creating;
             Name = name;
             Parent = parent;
+        }
+
+        internal void SetWidgetGo(GameObject obj)
+        {
             Go = obj;
-            Go.name = name;
+            Go.name = Name;
             Tf = Go.transform;
             Rect = Go.GetComponent<RectTransform>();
             UIAnimator = Tf.GetComponent<Animator>();
@@ -235,7 +239,8 @@ namespace GamePlay
                     return;
                 }
                 
-                widget.SetWidgetData(widgetName, obj, this);
+                widget.SetWidgetData(widgetName, this);
+                widget.SetWidgetGo(obj);
                 widget.SetCustomData(data);
                 widget.Create();
                 widget.Status = UIStatus.Showed;
@@ -293,7 +298,8 @@ namespace GamePlay
                     return;
                 }
                 
-                widget.SetWidgetData(widgetName, obj, this);
+                widget.SetWidgetData(widgetName, this);
+                widget.SetWidgetGo(obj);
                 widget.SetCustomData(data);
                 widget.Create();
                 widget.Status = UIStatus.Showed;
@@ -324,7 +330,8 @@ namespace GamePlay
                 LiteRuntime.Log.Error("Failed to create widget: {0}", widgetName);
                 return null;
             }
-            widget.SetWidgetData(widgetName, obj, this);
+            widget.SetWidgetData(widgetName, this);
+            widget.SetWidgetGo(obj);
             widget.SetCustomData(data);
             widget.Create();
             
@@ -348,7 +355,8 @@ namespace GamePlay
                 LiteRuntime.Log.Error("Failed to create widget: {0}", widgetName);
                 return null;
             }
-            widget.SetWidgetData(widgetName, UnityEngine.Object.Instantiate(temp, parent), this);
+            widget.SetWidgetData(widgetName, this);
+            widget.SetWidgetGo(UnityEngine.Object.Instantiate(temp, parent));
             widget.SetCustomData(data);
             widget.Create();
             

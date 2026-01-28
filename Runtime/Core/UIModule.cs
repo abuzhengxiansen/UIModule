@@ -12,16 +12,16 @@ namespace GamePlay
     {
         private class UILayer
         {
-            public int LayerId;
+            public int LayerIndex;
             public string LayerName;
             public Transform LayerTransform;
         }
         
-        private const int UiOrderSpace = 100;
         public Camera UiCamera { get; private set; }
         private readonly List<UILayer> _uiLayers = new();
+        private readonly Dictionary<string, UILayer> _layerMap = new();
         private UICanvas _root;
-        private readonly Dictionary<int, LinkedList<BaseView>> _uiViewList = new();
+        private readonly Dictionary<string, LinkedList<BaseView>> _uiViewList = new();
         private readonly HashSet<BaseView> _uiViewCaches = new();
         private readonly Queue<BaseView> _pendingDisposeViewQueue = new ();
         private Vector2 _adaptAnchorMin = Vector2.zero;
@@ -57,45 +57,48 @@ namespace GamePlay
         private void InitUILayers()
         {
             // 从UILayerSettings创建所有层级
-            if (Config == null || Config.layers.Count == 0)
+            if (Config == null || Config.layers == null || Config.layers.Count == 0)
             {
                 Debug.LogError("UIModule: layers is not configured in UIModuleConfig!");
                 return;
             }
             
-            Config.layers.Sort((a, b) => a.layerOrder.CompareTo(b.layerOrder));
-            
-            foreach (var layerDefine in Config.layers)
+            for (var i = 0; i < Config.layers.Count; i++)
             {
-                _uiLayers.Add(CreateLayer(layerDefine));
+                var layerName = Config.layers[i];
+                var layer = CreateLayer(i + 1, layerName);
+                _uiLayers.Add(layer);
+                _layerMap[layerName] = layer;
             }
         }
         
         private void DestroyLayers()
         {
-            foreach (var layer in _uiLayers)
+            for (var i = 0; i < _uiLayers.Count; i++)
             {
+                var layer = _uiLayers[i];
                 if (layer.LayerTransform)
                 {
-                    UnityEngine.Object.Destroy(layer.LayerTransform.gameObject);
+                    Object.Destroy(layer.LayerTransform.gameObject);
                 }
             }
             _uiLayers.Clear();
+            _layerMap.Clear();
         }
         
-        private UILayer GetLayer(int layerId)
+        private UILayer GetLayer(string layerName)
         {
-            var layer = _uiLayers.Find(l => l.LayerId == layerId);
-            return layer;
+            return _layerMap.GetValueOrDefault(layerName);
         }
         
-        private UILayer CreateLayer(UILayerDefine layerDefine)
+        private UILayer CreateLayer(int index, string layerName)
         {
-            var layer = new UILayer() {
-                LayerId = layerDefine.layerId,
-                LayerName = layerDefine.layerName,
+            var layer = new UILayer()
+            {
+                LayerIndex = index,
+                LayerName = layerName,
             };
-            var layerTransform = new GameObject(layer.LayerName, typeof(RectTransform)).transform;
+            var layerTransform = new GameObject(layerName, typeof(RectTransform)).transform;
             layerTransform.SetParent(_root.transform);
             layer.LayerTransform = layerTransform;
                     
@@ -110,49 +113,13 @@ namespace GamePlay
             
             return layer;
         }
-        
-        private void CreateUIObj(string path, int layerId, Action<GameObject> callback)
-        {
-            try
-            {
-                var layer = GetLayer(layerId);
-                if (layer == null)
-                {
-                    LogError($"CreateUIObjAsync failed: Layer {layerId} not found");
-                    callback?.Invoke(null);
-                    return;
-                }
-                
-                LiteRuntime.Asset.InstantiateAsync(path, layer.LayerTransform, (uiObj) =>
-                {
-                    if (!uiObj)
-                    {
-                        callback?.Invoke(null);
-                        return;
-                    }
-                
-                    var canvas = uiObj.GetComponent<Canvas>();
-                    canvas.sortingLayerName = "UI";
-                    canvas.enabled = false;
-                
-                    callback?.Invoke(uiObj);
-                });
-            }
-            catch (Exception e)
-            {
-                LogError($"CreateUIObjAsync failed: {e.Message}\n{e.StackTrace}");
-                callback?.Invoke(null);
-            }
-        }
 
-        private BaseView CreateUIView(UIConfig config, GameObject uiObj)
+        private BaseView CreateUIView(UIConfig config)
         {
             var uiView = Activator.CreateInstance(config.Type) as BaseView;
-            if (uiView != null)
-            {
-                uiView.Status = UIStatus.Creating;
-            }
-            uiView?.SetViewData(config, uiObj);
+            if (uiView == null) return null;
+            
+            uiView?.SetViewData(config);
             _uiViewCaches.Add(uiView);
             return uiView;
         }
@@ -163,16 +130,36 @@ namespace GamePlay
             {
                 LiteRuntime.Event.Send(new UIOperateEvent(config.Type, config.Name, UIOperateState.PrepareCreate));
             
-                CreateUIObj(config.Path, config.Layer, (uiObj) =>
+                var layer = GetLayer(config.Layer);
+                if (layer == null)
+                {
+                    LogError($"CreateUIObjAsync failed: Layer {config.Layer} not found");
+                    callback?.Invoke(false);
+                    return;
+                }
+                
+                var uiView = CreateUIView(config);
+                if (uiView == null)
+                {
+                    LogError($"CreateUIObjAsync failed: Unable to create instance of {config.Name}");
+                    callback?.Invoke(false);
+                    return;
+                }
+                
+                LiteRuntime.Asset.InstantiateAsync(config.Path, layer.LayerTransform, (uiObj) =>
                 {
                     if (!uiObj)
                     {
-                        LogWarn($"OpenUIAsync failed: {config.Type.Name} prefab not found at {config.Path}");
+                        LogWarn($"OpenUIAsync failed: {config.Name} prefab not found at {config.Path}");
                         callback?.Invoke(false);
                         return;
                     }
                 
-                    var uiView = CreateUIView(config, uiObj);
+                    var canvas = uiObj.GetComponent<Canvas>();
+                    canvas.sortingLayerName = "UI";
+                    canvas.enabled = false;
+                    
+                    uiView.SetViewGo(uiObj);
                     LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Created));
                     ShowUI(uiView, data, isImmediately, callback);
                 });
@@ -208,7 +195,7 @@ namespace GamePlay
                 PushStack(view);
             }
             
-            if (view.Status == UIStatus.None)
+            if (view.Status == UIStatus.Creating)
             {
                 view.Create();
             }
@@ -247,11 +234,11 @@ namespace GamePlay
         
         private void PushStack(BaseView uiView)
         {
-            var layer = uiView.Config.Layer;
-            if (!_uiViewList.TryGetValue(layer, out var list))
+            var layerName = uiView.Config.Layer;
+            if (!_uiViewList.TryGetValue(layerName, out var list))
             {
                 list = new LinkedList<BaseView>();
-                _uiViewList.Add(layer, list);
+                _uiViewList.Add(layerName, list);
             }
             
             list.AddLast(uiView);
@@ -260,8 +247,8 @@ namespace GamePlay
         
         private void PopStack(BaseView uiView)
         {
-            var layer = uiView.Config.Layer;
-            if (!_uiViewList.TryGetValue(layer, out var list)) return;
+            var layerName = uiView.Config.Layer;
+            if (!_uiViewList.TryGetValue(layerName, out var list)) return;
             list.Remove(uiView);
         }
         
@@ -294,17 +281,25 @@ namespace GamePlay
             var curLayer = GetLayer(uiView.Config.Layer);
             if (curLayer == null) return;
 
-            var orderNum = 0;
-            foreach (var layer in _uiLayers)
+            // 只刷新当前layer中的UI
+            if (!_uiViewList.TryGetValue(curLayer.LayerName, out var list) || list.Count == 0) return;
+            
+            // 计算该layer的sortingOrder起始值
+            var baseSortingOrder = curLayer.LayerIndex * Config.layerSortSpace;
+            var uiSortSpace = Config.uiSortSpace;
+            
+            // 遍历该layer中的所有UI，按顺序分配sortingOrder
+            var orderIndex = 0;
+            var node = list.First;
+            while (node != null)
             {
-                var list = _uiViewList.GetValueOrDefault(layer.LayerId);
-                if (list == null || list.Count == 0) continue;
-                
-                foreach (var view in list)
+                var uiSort = baseSortingOrder + orderIndex * uiSortSpace;
+                if (node.Value.Canvas.sortingOrder != uiSort)
                 {
-                    view.Canvas.sortingOrder = orderNum;
-                    orderNum += UiOrderSpace;
+                    node.Value.Canvas.sortingOrder = uiSort;
                 }
+                orderIndex++;
+                node = node.Next;
             }
         }
         
@@ -343,7 +338,7 @@ namespace GamePlay
                 var layer = config.Layer;
                 var topView = GetTopUI(layer);
 
-                var uiView = GetUI(config.Type);
+                var uiView = GetUI(config.Name);
                 if (config.IsMultiple || uiView == null)
                 {
                     if (!config.IsCoexist && topView != null)
@@ -361,6 +356,11 @@ namespace GamePlay
                 else if (topView != null && topView == uiView)
                 {
                     LogWarn($"OpenUI: {config.Name} is already the top view can't open");
+                    callback?.Invoke(false);
+                }
+                else if (uiView.Status == UIStatus.Creating)
+                {
+                    LogWarn($"OpenUI: {config.Name} is creating, please wait");
                     callback?.Invoke(false);
                 }
                 else
@@ -431,14 +431,14 @@ namespace GamePlay
 
         #region GetUI
 
-        public BaseView GetTopUI(int layerId = -1)
+        public BaseView GetTopUI(string layerName = null)
         {
-            if (layerId == -1)
+            if (string.IsNullOrEmpty(layerName))
             {
                 for (var i = _uiLayers.Count - 1; i >= 0; i--)
                 {
                     var layer = _uiLayers[i];
-                    if (_uiViewList.TryGetValue(layer.LayerId, out var list) && list.Count > 0)
+                    if (_uiViewList.TryGetValue(layer.LayerName, out var list) && list.Count > 0)
                     {
                         return list.Last.Value;
                     }
@@ -446,7 +446,7 @@ namespace GamePlay
             }
             else
             {
-                if (!_uiViewList.TryGetValue(layerId, out var list))
+                if (!_uiViewList.TryGetValue(layerName, out var list))
                 {
                     return null;
                 }
@@ -458,27 +458,34 @@ namespace GamePlay
         public BaseView GetUI(Type type)
         {
             var uiName = type.Name;
-            var uiView = _uiViewCaches.FirstOrDefault(cache => cache.Name == uiName);
-            if (uiView == null) return null;
-
-            if (uiView.Config.IsMultiple)
-            {
-                if (!_uiViewList.TryGetValue(uiView.Config.Layer, out var list)) return null;
-                uiView = list.LastOrDefault(view => view.Name == uiName);
-            }
-            
-            return uiView;
+            return GetUI(uiName);
         }
         
-        public BaseView GetUI(string name)
+        public BaseView GetUI(string uiName)
         {
-            var uiView = _uiViewCaches.FirstOrDefault(cache => cache.Name == name);
+            BaseView uiView = null;
+            foreach (var cacheView in _uiViewCaches)
+            {
+                if (cacheView.Name == uiName)
+                {
+                    uiView = cacheView;
+                    break;
+                }
+            }
             if (uiView == null) return null;
 
             if (uiView.Config.IsMultiple)
             {
                 if (!_uiViewList.TryGetValue(uiView.Config.Layer, out var list)) return null;
-                uiView = list.LastOrDefault(view => view.Name == name);
+                for (var i = list.Count - 1; i >= 0; i--)
+                {
+                    var view = list.ElementAt(i);
+                    if (view.Name == uiName)
+                    {
+                        uiView = view;
+                        break;
+                    }
+                }
             }
             
             return uiView;
@@ -492,14 +499,20 @@ namespace GamePlay
 
         #endregion
 
-        public void CloseUIByLayer(int layerId)
+        public void CloseUIByLayer(string layerName)
         {
-            if (!_uiViewList.TryGetValue(layerId, out var list)) return;
-            foreach (var view in list.Where(view => view.Status is not UIStatus.Disposed))
+            if (!_uiViewList.TryGetValue(layerName, out var list)) return;
+            var node = list.First;
+            while (node != null)
             {
-                _uiViewCaches.Remove(view);
-                _pendingDisposeViewQueue.Enqueue(view);
-                view.Dispose();
+                var view = node.Value;
+                if (view.Status is not UIStatus.Disposed)
+                {
+                    _uiViewCaches.Remove(view);
+                    _pendingDisposeViewQueue.Enqueue(view);
+                    view.Dispose();
+                }
+                node = node.Next;
             }
             list.Clear();
             DisposePendingQueueImmediately();
@@ -507,9 +520,9 @@ namespace GamePlay
 
         public void CloseAllUI()
         {
-            foreach (var layer in _uiLayers)
+            for (var i = 0; i < _uiLayers.Count; i++)
             {
-                CloseUIByLayer(layer.LayerId);
+                CloseUIByLayer(_uiLayers[i].LayerName);
             }
             _uiViewCaches.Clear();
             _uiViewList.Clear();
@@ -560,7 +573,7 @@ namespace GamePlay
     {
         public Type Type;
         public string Name;
-        public int Layer;
+        public string Layer;
         public string Path;
         public bool IsMultiple;
         public bool IsCoexist;

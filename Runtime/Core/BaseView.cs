@@ -16,11 +16,16 @@ namespace GamePlay
         private bool _useShowAnimator;
         private bool _useHideAnimator;
         
-        public void SetViewData(UIConfig config, GameObject go)
+        internal void SetViewData(UIConfig config)
         {
-            SetWidgetData(config.Name, go);
-            
+            SetWidgetData(config.Name);
             Config = config;
+        }
+
+        internal void SetViewGo(GameObject go)
+        {
+            SetWidgetGo(go);
+            
             Canvas = Tf.GetComponent<Canvas>();
             Raycaster = Tf.GetComponent<GraphicRaycaster>();
             

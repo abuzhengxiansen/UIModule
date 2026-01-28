@@ -1031,7 +1031,8 @@ namespace UnityEngine.UI
 
                 widget = Activator.CreateInstance(_itemType) as BaseWidget;
                 
-                widget.SetWidgetData("loopItem" + index, go);
+                widget.SetWidgetData("loopItem" + index);
+                widget.SetWidgetGo(go);
                 widget.Create();
                 widget.Status = UIStatus.Showed;
                 
