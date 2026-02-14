@@ -18,6 +18,9 @@ namespace GamePlay
         }
         
         public Camera UiCamera { get; private set; }
+        public float ResolutionHeight { get; private set; }
+        public float ResolutionWidth { get; private set; }
+        
         private readonly List<UILayer> _uiLayers = new();
         private readonly Dictionary<string, UILayer> _layerMap = new();
         private UICanvas _root;
@@ -113,18 +116,36 @@ namespace GamePlay
             
             return layer;
         }
+        
+        private void SetUICustomData(BaseView view, ICustomUIData data)
+        {
+            if (view == null || data == null) return;
+            view.SetCustomData(data);
+        }
+
+        private void ChangeStackToTop(BaseView view)
+        {
+            var topView = GetTopUI(view.Config.Layer);
+            if (topView == null || topView != view)
+            {
+                PopStack(view);
+                var curTopView = GetTopUI(view.Config.Layer);
+                curTopView?.Covered(view);
+                PushStack(view);
+            }
+        }
 
         private BaseView CreateUIView(UIConfig config)
         {
             var uiView = Activator.CreateInstance(config.Type) as BaseView;
             if (uiView == null) return null;
             
-            uiView?.SetViewData(config);
+            uiView.SetViewData(config);
             _uiViewCaches.Add(uiView);
             return uiView;
         }
         
-        private void CreateUIToOpen(UIConfig config, ICustomUIData data, bool isImmediately = false, Action<bool> callback = null)
+        private void CreateUIToOpen(UIConfig config, ICustomUIData data, bool isImmediately = false, Action<UIOperateResult> callback = null)
         {
             try
             {
@@ -134,7 +155,7 @@ namespace GamePlay
                 if (layer == null)
                 {
                     LogError($"CreateUIObjAsync failed: Layer {config.Layer} not found");
-                    callback?.Invoke(false);
+                    callback?.Invoke(UIOperateResult.LayerNotFind);
                     return;
                 }
                 
@@ -142,7 +163,7 @@ namespace GamePlay
                 if (uiView == null)
                 {
                     LogError($"CreateUIObjAsync failed: Unable to create instance of {config.Name}");
-                    callback?.Invoke(false);
+                    callback?.Invoke(UIOperateResult.ViewIsNull);
                     return;
                 }
                 
@@ -151,7 +172,16 @@ namespace GamePlay
                     if (!uiObj)
                     {
                         LogWarn($"OpenUIAsync failed: {config.Name} prefab not found at {config.Path}");
-                        callback?.Invoke(false);
+                        _uiViewCaches.Remove(uiView);
+                        callback?.Invoke(UIOperateResult.GoCreateFailed);
+                        return;
+                    }
+                    
+                    if (uiView.Status != UIStatus.Creating)
+                    {
+                        LogWarn($"OpenUIAsync failed: {config.Name} status is not Creating, status error");
+                        LiteRuntime.Asset.UnloadAsset(uiObj);
+                        callback?.Invoke(UIOperateResult.ViewStateError);
                         return;
                     }
                 
@@ -160,48 +190,42 @@ namespace GamePlay
                     canvas.enabled = false;
                     
                     uiView.SetViewGo(uiObj);
+                    SetUICustomData(uiView, data);
+                    ChangeStackToTop(uiView);
+                    uiView.Create();
+                    
                     LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Created));
-                    ShowUI(uiView, data, isImmediately, callback);
+                    ShowUI(uiView, isImmediately, callback);
                 });
             }
             catch (Exception e)
             {
                 LogError($"OpenUIAsync failed for {config.Name}: {e.Message}\n{e.StackTrace}");
-                callback?.Invoke(false);
+                callback?.Invoke(UIOperateResult.OtherError);
             }
         }
         
-        private void ShowUI(BaseView view, ICustomUIData data = null, bool isImmediately = false, Action<bool> callback = null)
+        private void ShowUI(BaseView view, ICustomUIData data = null, bool isImmediately = false, Action<UIOperateResult> callback = null)
+        {
+            SetUICustomData(view, data);
+            ChangeStackToTop(view);
+            ShowUI(view, isImmediately, callback);
+        }
+        
+        private void ShowUI(BaseView view, bool isImmediately = false, Action<UIOperateResult> callback = null)
         {
             if (view == null)
             {
-                callback?.Invoke(false);
+                callback?.Invoke(UIOperateResult.ViewIsNull);
                 return;
-            }
-                
-            if (data != null)
-            {
-                view.SetCustomData(data);
             }
          
             LiteRuntime.Event.Send(new UIOperateEvent(view, UIOperateState.PrepareOpen));
             
-            var topView = GetTopUI(view.Config.Layer);
-            if (topView == null || topView != view)
-            {
-                PopStack(view);
-                var curTopView = GetTopUI(view.Config.Layer);
-                curTopView?.Covered(view);
-                PushStack(view);
-            }
-            
-            if (view.Status == UIStatus.Creating)
-            {
-                view.Create();
-            }
             if (view.Status == UIStatus.Showed)
             {
-                callback?.Invoke(true);
+                LiteRuntime.Event.Send(new UIOperateEvent(view, UIOperateState.Opened));
+                callback?.Invoke(UIOperateResult.Success);
             }
             else
             {
@@ -223,11 +247,13 @@ namespace GamePlay
             {
                 uiView.Hide(isImmediately, () =>
                 {
+                    LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Closed));
                     DestroyUI(uiView, callback);
                 });
             }
             else
             {
+                LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Closed));
                 DestroyUI(uiView, callback);
             }
         }
@@ -260,12 +286,22 @@ namespace GamePlay
                 return;
             }
             
-            LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Closed));
+            LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.PrepareDispose));
+            
             _uiViewCaches.Remove(uiView);
             PopStack(uiView);
-            _pendingDisposeViewQueue.Enqueue(uiView);
+            
+            if (uiView.Status >= UIStatus.Created)
+            {
+                _pendingDisposeViewQueue.Enqueue(uiView);
+            }
+            
+            var type = uiView.Config.Type;
+            var name = uiView.Config.Name;
+            
             callback?.Invoke();
             uiView.Dispose();
+            LiteRuntime.Event.Send(new UIOperateEvent(type, name, UIOperateState.Disposed));
         }
         
         private void DisposePendingQueueImmediately()
@@ -331,7 +367,7 @@ namespace GamePlay
 
         #region Open
 
-        public void OpenUI(UIConfig config, ICustomUIData data, bool isImmediately, Action<bool> callback = null)
+        public void OpenUI(UIConfig config, ICustomUIData data, bool isImmediately, Action<UIOperateResult> callback = null)
         {
             try
             {
@@ -356,12 +392,12 @@ namespace GamePlay
                 else if (topView != null && topView == uiView)
                 {
                     LogWarn($"OpenUI: {config.Name} is already the top view can't open");
-                    callback?.Invoke(false);
+                    callback?.Invoke(UIOperateResult.TopViewCantOpenAgain);
                 }
                 else if (uiView.Status == UIStatus.Creating)
                 {
                     LogWarn($"OpenUI: {config.Name} is creating, please wait");
-                    callback?.Invoke(false);
+                    callback?.Invoke(UIOperateResult.ViewIsCreating);
                 }
                 else
                 {
@@ -388,17 +424,17 @@ namespace GamePlay
             catch (Exception e)
             {
                 LogError($"OpenUI failed for {config.Name}: {e.Message}\n{e.StackTrace}");
-                callback?.Invoke(false);
+                callback?.Invoke(UIOperateResult.OtherError);
             }
         }
         
-        public async UniTask<bool> OpenUIAsync(UIConfig config, ICustomUIData data, bool isImmediately = false)
+        public async UniTask<UIOperateResult> OpenUIAsync(UIConfig config, ICustomUIData data, bool isImmediately = false)
         {
-            var tcs = new UniTaskCompletionSource<bool>();
+            var tcs = new UniTaskCompletionSource<UIOperateResult>();
             
-            OpenUI(config, data, isImmediately, (success) =>
+            OpenUI(config, data, isImmediately, result =>
             {
-                tcs.TrySetResult(success);
+                tcs.TrySetResult(result);
             });
             
             return await tcs.Task;
@@ -455,10 +491,10 @@ namespace GamePlay
             return null;
         }
         
-        public BaseView GetUI(Type type)
+        public T GetUI<T>(string uiName) where T : BaseView
         {
-            var uiName = type.Name;
-            return GetUI(uiName);
+            var uiView = GetUI(uiName);
+            return uiView as T;
         }
         
         public BaseView GetUI(string uiName)
@@ -491,10 +527,17 @@ namespace GamePlay
             return uiView;
         }
         
-        public T GetUI<T>() where T : BaseView
+        public List<T> GetUIs<T>(string uiName) where T : BaseView
         {
-            var uiView = GetUI(typeof(T));
-            return uiView as T;
+            var result = new List<T>();
+            foreach (var cacheView in _uiViewCaches)
+            {
+                if (cacheView.Name == uiName && cacheView is T tView)
+                {
+                    result.Add(tView);
+                }
+            }
+            return result;
         }
 
         #endregion
@@ -552,6 +595,13 @@ namespace GamePlay
             if (canvas != null)
             {
                 UiCamera = canvas.worldCamera;
+            }
+            
+            var canvasScaler = _root.GetComponent<UnityEngine.UI.CanvasScaler>();
+            if (canvasScaler != null)
+            {
+                ResolutionWidth = canvasScaler.referenceResolution.x;
+                ResolutionHeight = canvasScaler.referenceResolution.y;
             }
             
             SetSafeArea(Screen.safeArea);

@@ -24,4 +24,16 @@ namespace GamePlay
         PrepareDispose,
         Disposed
     }
+    
+    public enum UIOperateResult
+    {
+        Success,
+        TopViewCantOpenAgain,
+        ViewIsCreating,
+        LayerNotFind,
+        ViewIsNull,
+        GoCreateFailed,
+        ViewStateError,
+        OtherError,
+    }
 }

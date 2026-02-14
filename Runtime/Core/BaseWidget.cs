@@ -58,7 +58,7 @@ namespace GamePlay
         internal virtual void Create()
         {
             Status = UIStatus.Created;
-            _eventTag = Go.name.GetHashCode();
+            _eventTag = Go.GetInstanceID();
             GenerateAutoCode();
             OnCreate();
         }
@@ -74,7 +74,10 @@ namespace GamePlay
         {
             Status = UIStatus.None;
 
-            UIBinder.AnimOverAction = null;
+            if (UIBinder)
+            {
+                UIBinder.AnimOverAction = null;
+            }
             UnRegisterAllEvents();
             DisposePendingQueueImmediately();
             UnloadAllAssets();

@@ -93,7 +93,7 @@ namespace GamePlay
 
         #region show
 
-        public void Show(bool isImmediately = false, Action<bool> callBack = null)
+        public void Show(bool isImmediately = false, Action<UIOperateResult> callBack = null)
         {
             Status = UIStatus.Showing;
             Raycaster.enabled = false;
@@ -102,14 +102,14 @@ namespace GamePlay
             if (isImmediately)
             {
                 ShowOver();
-                callBack?.Invoke(true);
+                callBack?.Invoke(UIOperateResult.Success);
             }
             else
             {
                 DoShow(() =>
                 {
                     ShowOver();
-                    callBack?.Invoke(true);
+                    callBack?.Invoke(UIOperateResult.Success);
                 });
             }
         }

@@ -195,8 +195,19 @@ namespace GamePlay
             
             if (isNew)
             {
-                AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
+                
+                // 变成相对路径
+                path = path.Replace(Application.dataPath, "Assets").Trim();
+                path = path.Replace("\\", "/").Trim();
+
+                EditorApplication.delayCall += () =>
+                {
+                    var scriptAsset = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
+                    binder.script = scriptAsset;
+                    EditorUtility.SetDirty(binder);
+                    AssetDatabase.SaveAssets();
+                };
             }
         }
 
@@ -212,29 +223,29 @@ namespace GamePlay
 {
     public static class UIConfigExtensions
     {
-        public static void OpenUI(this UIConfig config, ICustomUIData data = null, Action<bool> callback = null)
+        public static void OpenUI(this UIConfig config, ICustomUIData data = null, Action<UIOperateResult> callback = null)
         {
             UIModule.Instance.OpenUI(config, data, false, callback);
         }
         
-        public static void OpenUIImmediately(this UIConfig config, ICustomUIData data = null, Action<bool> callback = null)
+        public static void OpenUIImmediately(this UIConfig config, ICustomUIData data = null, Action<UIOperateResult> callback = null)
         {
             UIModule.Instance.OpenUI(config, data, true, callback);
         }
         
-        public static UniTask<bool> OpenUIAsync(this UIConfig config, ICustomUIData data = null)
+        public static UniTask<UIOperateResult> OpenUIAsync(this UIConfig config, ICustomUIData data = null)
         {
             return UIModule.Instance.OpenUIAsync(config, data, false);
         }
         
-        public static UniTask<bool> OpenUIImmediatelyAsync(this UIConfig config, ICustomUIData data = null)
+        public static UniTask<UIOperateResult> OpenUIImmediatelyAsync(this UIConfig config, ICustomUIData data = null)
         {
             return UIModule.Instance.OpenUIAsync(config, data, true);
         }
         
         public static void CloseUI(this UIConfig config, Action callback = null)
         {
-            var uiView = UIModule.Instance.GetUI(config.Type);
+            var uiView = UIModule.Instance.GetUI(config.Name);
             if (uiView == null || uiView.Status == UIStatus.Disposed) return;
             
             UIModule.Instance.CloseUI(uiView, false, callback);
@@ -242,15 +253,20 @@ namespace GamePlay
         
         public static void CloseUIImmediately(this UIConfig config, Action callback = null)
         {
-            var uiView = UIModule.Instance.GetUI(config.Type);
+            var uiView = UIModule.Instance.GetUI(config.Name);
             if (uiView == null || uiView.Status == UIStatus.Disposed) return;
             
             UIModule.Instance.CloseUI(uiView, true, callback);
         }
 
-        public static BaseView GetUI(this UIConfig config)
+        public static T GetUICastTo<T>(this UIConfig config) where T : BaseView
         {
-            return UIModule.Instance.GetUI(config.Type);
+            return UIModule.Instance.GetUI<T>(config.Name);
+        }
+        
+        public static List<T> GetUIsCastTo<T>(this UIConfig config) where T : BaseView
+        {
+            return UIModule.Instance.GetUIs<T>(config.Name);
         }
     }
 
