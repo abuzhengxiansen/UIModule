@@ -24,9 +24,9 @@ namespace GamePlay
         private readonly List<UILayer> _uiLayers = new();
         private readonly Dictionary<string, UILayer> _layerMap = new();
         private UICanvas _root;
-        private readonly Dictionary<string, LinkedList<BaseView>> _uiViewList = new();
-        private readonly HashSet<BaseView> _uiViewCaches = new();
-        private readonly Queue<BaseView> _pendingDisposeViewQueue = new ();
+        private readonly Dictionary<string, List<BaseView>> _uiLayerViewDict = new();
+        private readonly List<BaseView> _uiViewCaches = new();
+        private bool _needRemoveView;
         private Vector2 _adaptAnchorMin = Vector2.zero;
         private Vector2 _adaptAnchorMax = Vector2.one;
         
@@ -39,20 +39,13 @@ namespace GamePlay
         
         public void Tick(float deltaTime)
         {
-            DisposePendingQueueImmediately();
-            
-            foreach (var (_, list) in _uiViewList)
+            DisposeViewImmediately();
+
+            foreach (var view in _uiViewCaches)
             {
-                var currentNode = list.First;
-                while (currentNode != null)
+                if (view.Status is >= UIStatus.Created and < UIStatus.Disposed)
                 {
-                    var view = currentNode.Value;
-                    if (view.Status != UIStatus.None && view.Status != UIStatus.Disposed) 
-                    {
-                        view.Tick(deltaTime);
-                    }
-    
-                    currentNode = currentNode.Next;
+                    view.Tick(deltaTime);
                 }
             }
         }
@@ -180,6 +173,7 @@ namespace GamePlay
                     if (uiView.Status != UIStatus.Creating)
                     {
                         LogWarn($"OpenUIAsync failed: {config.Name} status is not Creating, status error");
+                        _uiViewCaches.Remove(uiView);
                         LiteRuntime.Asset.UnloadAsset(uiObj);
                         callback?.Invoke(UIOperateResult.ViewStateError);
                         return;
@@ -248,37 +242,37 @@ namespace GamePlay
                 uiView.Hide(isImmediately, () =>
                 {
                     LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Closed));
-                    DestroyUI(uiView, callback);
+                    DisposeView(uiView, callback);
                 });
             }
             else
             {
                 LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.Closed));
-                DestroyUI(uiView, callback);
+                DisposeView(uiView, callback);
             }
         }
         
         private void PushStack(BaseView uiView)
         {
             var layerName = uiView.Config.Layer;
-            if (!_uiViewList.TryGetValue(layerName, out var list))
+            if (!_uiLayerViewDict.TryGetValue(layerName, out var list))
             {
-                list = new LinkedList<BaseView>();
-                _uiViewList.Add(layerName, list);
+                list = new List<BaseView>();
+                _uiLayerViewDict.Add(layerName, list);
             }
             
-            list.AddLast(uiView);
+            list.Add(uiView);
             RefreshOrder(uiView);
         }
         
         private void PopStack(BaseView uiView)
         {
             var layerName = uiView.Config.Layer;
-            if (!_uiViewList.TryGetValue(layerName, out var list)) return;
+            if (!_uiLayerViewDict.TryGetValue(layerName, out var list)) return;
             list.Remove(uiView);
         }
         
-        private void DestroyUI(BaseView uiView, Action callback = null)
+        private void DisposeView(BaseView uiView, Action callback = null)
         {
             if (uiView == null)
             {
@@ -288,13 +282,8 @@ namespace GamePlay
             
             LiteRuntime.Event.Send(new UIOperateEvent(uiView, UIOperateState.PrepareDispose));
             
-            _uiViewCaches.Remove(uiView);
             PopStack(uiView);
-            
-            if (uiView.Status >= UIStatus.Created)
-            {
-                _pendingDisposeViewQueue.Enqueue(uiView);
-            }
+            _needRemoveView = true;
             
             var type = uiView.Config.Type;
             var name = uiView.Config.Name;
@@ -304,11 +293,17 @@ namespace GamePlay
             LiteRuntime.Event.Send(new UIOperateEvent(type, name, UIOperateState.Disposed));
         }
         
-        private void DisposePendingQueueImmediately()
+        private void DisposeViewImmediately()
         {
-            while (_pendingDisposeViewQueue.Count > 0)
+            if (!_needRemoveView) return;
+            _needRemoveView = false;
+            
+            for (var i = _uiViewCaches.Count - 1; i >= 0; i--)
             {
-                _pendingDisposeViewQueue.Dequeue().DisposeImmediately();
+                var view = _uiViewCaches[i];
+                if (view.Status != UIStatus.Disposed) continue;
+                view.DisposeImmediately();
+                _uiViewCaches.RemoveAt(i);
             }
         }
 
@@ -318,24 +313,21 @@ namespace GamePlay
             if (curLayer == null) return;
 
             // 只刷新当前layer中的UI
-            if (!_uiViewList.TryGetValue(curLayer.LayerName, out var list) || list.Count == 0) return;
+            if (!_uiLayerViewDict.TryGetValue(curLayer.LayerName, out var list) || list.Count == 0) return;
             
             // 计算该layer的sortingOrder起始值
             var baseSortingOrder = curLayer.LayerIndex * Config.layerSortSpace;
             var uiSortSpace = Config.uiSortSpace;
             
             // 遍历该layer中的所有UI，按顺序分配sortingOrder
-            var orderIndex = 0;
-            var node = list.First;
-            while (node != null)
+            for(var orderIndex = 0; orderIndex < list.Count; orderIndex++)
             {
+                var view = list[orderIndex];
                 var uiSort = baseSortingOrder + orderIndex * uiSortSpace;
-                if (node.Value.Canvas.sortingOrder != uiSort)
+                if (view.Canvas.sortingOrder != uiSort)
                 {
-                    node.Value.Canvas.sortingOrder = uiSort;
+                    view.Canvas.sortingOrder = uiSort;
                 }
-                orderIndex++;
-                node = node.Next;
             }
         }
         
@@ -394,10 +386,10 @@ namespace GamePlay
                     LogWarn($"OpenUI: {config.Name} is already the top view can't open");
                     callback?.Invoke(UIOperateResult.TopViewCantOpenAgain);
                 }
-                else if (uiView.Status == UIStatus.Creating)
+                else if (uiView.Status is <= UIStatus.Created or >= UIStatus.Disposed)
                 {
-                    LogWarn($"OpenUI: {config.Name} is creating, please wait");
-                    callback?.Invoke(UIOperateResult.ViewIsCreating);
+                    LogWarn($"OpenUI: {config.Name} state is not show or hide, can't open");
+                    callback?.Invoke(UIOperateResult.ViewStateError);
                 }
                 else
                 {
@@ -474,19 +466,19 @@ namespace GamePlay
                 for (var i = _uiLayers.Count - 1; i >= 0; i--)
                 {
                     var layer = _uiLayers[i];
-                    if (_uiViewList.TryGetValue(layer.LayerName, out var list) && list.Count > 0)
+                    if (_uiLayerViewDict.TryGetValue(layer.LayerName, out var list) && list.Count > 0)
                     {
-                        return list.Last.Value;
+                        return list[^1];
                     }
                 }
             }
             else
             {
-                if (!_uiViewList.TryGetValue(layerName, out var list))
+                if (!_uiLayerViewDict.TryGetValue(layerName, out var list) || list.Count == 0)
                 {
                     return null;
                 }
-                return list.Last?.Value;
+                return list[^1];
             }
             return null;
         }
@@ -512,10 +504,10 @@ namespace GamePlay
 
             if (uiView.Config.IsMultiple)
             {
-                if (!_uiViewList.TryGetValue(uiView.Config.Layer, out var list)) return null;
+                if (!_uiLayerViewDict.TryGetValue(uiView.Config.Layer, out var list)) return null;
                 for (var i = list.Count - 1; i >= 0; i--)
                 {
-                    var view = list.ElementAt(i);
+                    var view = list[i];
                     if (view.Name == uiName)
                     {
                         uiView = view;
@@ -544,31 +536,29 @@ namespace GamePlay
 
         public void CloseUIByLayer(string layerName)
         {
-            if (!_uiViewList.TryGetValue(layerName, out var list)) return;
-            var node = list.First;
-            while (node != null)
+            if (!_uiLayerViewDict.TryGetValue(layerName, out var list) || list.Count == 0) return;
+            _needRemoveView = true;
+            foreach (var view in list)
             {
-                var view = node.Value;
                 if (view.Status is not UIStatus.Disposed)
                 {
-                    _uiViewCaches.Remove(view);
-                    _pendingDisposeViewQueue.Enqueue(view);
                     view.Dispose();
                 }
-                node = node.Next;
             }
             list.Clear();
-            DisposePendingQueueImmediately();
         }
 
-        public void CloseAllUI()
+        public void CloseAllUI(bool isImmediately = false)
         {
-            for (var i = 0; i < _uiLayers.Count; i++)
+            foreach (var (layerName, _) in _uiLayerViewDict)
             {
-                CloseUIByLayer(_uiLayers[i].LayerName);
+                CloseUIByLayer(layerName);
             }
-            _uiViewCaches.Clear();
-            _uiViewList.Clear();
+
+            if (isImmediately)
+            {
+                DisposeViewImmediately();
+            }
         }
         
         public void FilterScreenAdapt(RectTransform rectTrans)
@@ -612,10 +602,10 @@ namespace GamePlay
 
         public void Dispose()
         {
-            CloseAllUI();
-            DisposePendingQueueImmediately();
+            CloseAllUI(true);
             DestroyLayers();
             _root = null;
+            UiCamera = null;
         }
     }
     

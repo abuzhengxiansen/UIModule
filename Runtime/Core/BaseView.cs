@@ -11,8 +11,7 @@ namespace GamePlay
         public GraphicRaycaster Raycaster { get; private set; }
         public UIConfig Config { get; private set; }
         
-        private Action _showOverCallback;
-        private Action _hideOverCallback;
+        private Action _viewAnimOverCallback;
         private bool _useShowAnimator;
         private bool _useHideAnimator;
         
@@ -51,15 +50,10 @@ namespace GamePlay
         {
             base.UIAnimOver(actionName);
             
-            if (actionName == "ShowUI")
+            if (actionName == "ShowUI" || actionName == "HideUI")
             {
-                _showOverCallback?.Invoke();
-                _showOverCallback = null;
-            }
-            else if (actionName == "HideUI")
-            {
-                _hideOverCallback?.Invoke();
-                _hideOverCallback = null;
+                _viewAnimOverCallback?.Invoke();
+                _viewAnimOverCallback = null;
             }
         }
 
@@ -127,7 +121,7 @@ namespace GamePlay
         {
             if (_useShowAnimator)
             {
-                _showOverCallback = callBack;
+                _viewAnimOverCallback = callBack;
                 UIAnimator.SetTrigger("ShowUI");
             }
             else
@@ -174,7 +168,7 @@ namespace GamePlay
         {
             if (_useHideAnimator)
             {
-                _hideOverCallback = callBack;
+                _viewAnimOverCallback = callBack;
                 UIAnimator.SetTrigger("HideUI");
             }
             else

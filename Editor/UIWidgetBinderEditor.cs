@@ -127,6 +127,24 @@ namespace GamePlay
     
             // 写入文件
             File.WriteAllText(path, newContent);
+            
+            if (isNew)
+            {
+                AssetDatabase.Refresh();
+                
+                // 变成相对路径
+                path = path.Replace(Application.dataPath, "Assets").Trim();
+                path = path.Replace("\\", "/").Trim();
+
+                EditorApplication.delayCall += () =>
+                {
+                    var scriptAsset = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
+                    binder.script = scriptAsset;
+                    EditorUtility.SetDirty(binder);
+                    AssetDatabase.SaveAssets();
+                };
+            }
+            
             return isNew;
         }
     

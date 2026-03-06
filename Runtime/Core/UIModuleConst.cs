@@ -29,7 +29,6 @@ namespace GamePlay
     {
         Success,
         TopViewCantOpenAgain,
-        ViewIsCreating,
         LayerNotFind,
         ViewIsNull,
         GoCreateFailed,

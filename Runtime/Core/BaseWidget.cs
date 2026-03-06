@@ -1,30 +1,45 @@
 ﻿using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using LiteQuark.Runtime;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
 namespace GamePlay
 {
     public abstract class BaseWidget : ITick
     {
+        private class CacheAsset
+        {
+            public readonly Object Asset;
+            public int Count;
+            
+            public CacheAsset(Object asset, int count)
+            {
+                Asset = asset;
+                Count = count;
+            }
+        }
+        
         public UIStatus Status { get; internal set; }
         public string Name { get; private set; }
         public Transform Tf { get; private set; }
         public GameObject Go { get; private set; }
         public RectTransform Rect { get; private set; }
         public BaseWidget Parent { get; private set; }
+        public bool IsClone { get; private set; }
         protected Animator UIAnimator { get; private set; }
         protected UIBaseBinder UIBinder { get; private set; }
 
         private int _eventTag;
         private ICustomUIData _data;
-        private readonly Dictionary<string, UnityEngine.Object> _cacheAssets = new();
+        private readonly Dictionary<string, CacheAsset> _cacheAssets = new();
         private readonly Dictionary<string, BaseWidget> _widgetCacheDict = new();
         private readonly List<BaseWidget> _widgetCacheList = new();
-        private readonly Queue<BaseWidget> _pendingDisposeWidgetQueue = new ();
         private readonly Dictionary<string, List<Action<BaseWidget>>> _widgetCreateCallbacks = new();
+        private bool _needRemoveWidget;
         
         public T GetCustomData<T>() where T : ICustomUIData
         {
@@ -57,6 +72,7 @@ namespace GamePlay
 
         internal virtual void Create()
         {
+            if (Status != UIStatus.Creating) return;
             Status = UIStatus.Created;
             _eventTag = Go.GetInstanceID();
             GenerateAutoCode();
@@ -65,6 +81,7 @@ namespace GamePlay
         
         internal virtual void Dispose()
         {
+            if (Status == UIStatus.Disposed) return;
             Status = UIStatus.Disposed;
             DisposeAllWidgets();
             OnDispose();
@@ -72,31 +89,25 @@ namespace GamePlay
         
         internal virtual void DisposeImmediately()
         {
-            Status = UIStatus.None;
-
             if (UIBinder)
             {
                 UIBinder.AnimOverAction = null;
             }
             UnRegisterAllEvents();
-            DisposePendingQueueImmediately();
+            DisposeWidgetImmediately(true);
             UnloadAllAssets();
         }
 
         public void Tick(float deltaTime)
         {
-            DisposePendingQueueImmediately();
-            
-            for (var i = _widgetCacheList.Count - 1; i >= 0; i--)
+            DisposeWidgetImmediately(false);
+
+            foreach (var widget in _widgetCacheList)
             {
-                if (i >= _widgetCacheList.Count) continue;
-                var widget = _widgetCacheList[i];
-                if (widget.Status is UIStatus.Disposed or UIStatus.None)
+                if (widget.Status is >= UIStatus.Created and < UIStatus.Disposed)
                 {
-                    _widgetCacheList.RemoveAt(i);
-                    continue;
+                    widget.Tick(deltaTime);
                 }
-                widget.Tick(deltaTime);
             }
             
             OnUpdate(deltaTime);
@@ -140,52 +151,77 @@ namespace GamePlay
         
         #region Asset
         
-        protected virtual void LoadAsset<T>(string address, Action<T> callback) where T : UnityEngine.Object
+        protected virtual void LoadAsset<T>(string address, Action<T> callback) where T : Object
         {
-            if (_cacheAssets.TryGetValue(address, out var cacheAsset))
+            if (_cacheAssets.TryGetValue(address, out var cache))
             {
-                callback?.Invoke(cacheAsset as T);
-                return;
+                // 已加载到资源
+                if (cache.Asset != null && cache.Asset is T result)
+                {
+                    callback?.Invoke(result);
+                    return;
+                }
+
+                // 资源正在加载中，增加加载计数
+                cache.Count++;
+            }
+            else
+            {
+                // 占位记录
+                _cacheAssets.Add(address, new CacheAsset(null, 1));
             }
             
             LiteRuntime.Asset.LoadAssetAsync<T>(address, (asset) =>
             {
                 if (!asset)
                 {
+                    _cacheAssets[address].Count--;
                     callback?.Invoke(null);
                     return;
                 }
-                if (Status == UIStatus.Disposed || Status == UIStatus.None || !Go)
+                if (Status is < UIStatus.Created or >= UIStatus.Disposed)
                 {
+                    _cacheAssets[address].Count--;
                     LiteRuntime.Asset.UnloadAsset(asset);
                     callback?.Invoke(null);
                     return;
                 }
-                _cacheAssets[address] = asset;
+                
                 callback?.Invoke(asset);
             });
         }
         
         protected void UnloadAsset(string address)
         {
-            if (!_cacheAssets.Remove(address))
+            if (!_cacheAssets.Remove(address, out var cache)) return;
+
+            for (var i = 0; i < cache.Count; i++)
             {
-                return;
+                LiteRuntime.Asset.UnloadAsset(address);
             }
-            LiteRuntime.Asset.UnloadAsset(address);
         }
         
         private void UnloadAllAssets()
         {
-            foreach (var (_, asset) in _cacheAssets)
+            foreach (var (path, cache) in _cacheAssets)
             {
-                LiteRuntime.Asset.UnloadAsset(asset);
+                for (var i = 0; i < cache.Count; i++)
+                {
+                    LiteRuntime.Asset.UnloadAsset(path);
+                }
             }
             _cacheAssets.Clear();
 
             if (Go)
             {
-                LiteRuntime.Asset.UnloadAsset(Go);
+                if (IsClone)
+                {
+                    Object.Destroy(Go);
+                }
+                else
+                {
+                    LiteRuntime.Asset.UnloadAsset(Go);
+                }
                 Go = null;
             }
         }
@@ -196,108 +232,62 @@ namespace GamePlay
         
         public T GetWidget<T>(string widgetName) where T : BaseWidget
         {
-            if (_widgetCacheDict.TryGetValue(widgetName, out var cacheWidget))
+            var widget = GetWidget(widgetName);
+            if (widget is T typedWidget)
             {
-                return cacheWidget as T;
+                return typedWidget;
             }
+
             return null;
+        }
+
+        public BaseWidget GetWidget(string widgetName)
+        {
+            return _widgetCacheDict.GetValueOrDefault(widgetName);
         }
 
         public void CreateWidget<T>(string widgetName, Transform parent, string address, ICustomUIData data = null, Action<T> callback = null) where T : BaseWidget
         {
-            if (_widgetCacheDict.TryGetValue(widgetName, out var cacheWidget))
-            {
-                callback?.Invoke(cacheWidget as T);
-                return;
-            }
-
-            if (callback != null)
-            {
-                if (_widgetCreateCallbacks.TryGetValue(widgetName, out var callbacks))
-                {
-                    callbacks.Add(newWidget => callback((T)newWidget));
-                    return;
-                }
-                _widgetCreateCallbacks[widgetName] = new List<Action<BaseWidget>> { newWidget => callback((T)newWidget) };
-            }
-            
-            LiteRuntime.Asset.InstantiateAsync(address, parent, obj =>
-            {
-                if (!obj)
-                {
-                    LiteRuntime.Log.Error("Create widget failed, address: {0}", address);
-                    callback?.Invoke(null);
-                    return;
-                }
-                
-                if (Status == UIStatus.Disposed || Status == UIStatus.None || !Go)
-                {
-                    LiteRuntime.Asset.UnloadAsset(obj);
-                    return;
-                }
-
-                if (Activator.CreateInstance(typeof(T)) is not BaseWidget widget)
-                {
-                    LiteRuntime.Log.Error("Failed to create widget: {0}", widgetName);
-                    return;
-                }
-                
-                widget.SetWidgetData(widgetName, this);
-                widget.SetWidgetGo(obj);
-                widget.SetCustomData(data);
-                widget.Create();
-                widget.Status = UIStatus.Showed;
-                
-                _widgetCacheDict.Add(widgetName, widget);
-                _widgetCacheList.Add(widget);
-                
-                if (_widgetCreateCallbacks.TryGetValue(widgetName, out var existingCallbacks))
-                {
-                    foreach (var existingCallback in existingCallbacks)
-                    {
-                        existingCallback?.Invoke(widget);
-                    }
-                    _widgetCreateCallbacks.Remove(widgetName);
-                }
-            });
+            CreateWidget(widgetName, typeof(T), parent, address, data, newWidget => callback?.Invoke(newWidget as T));
         }
         
         public void CreateWidget(string widgetName, Type widgetType, Transform parent, string address, ICustomUIData data = null, Action<BaseWidget> callback = null)
         {
-            if (_widgetCacheDict.TryGetValue(widgetName, out var cacheWidget))
+            if (Status == UIStatus.Disposed || Status == UIStatus.None || !Go)
             {
-                callback?.Invoke(cacheWidget);
+                LiteRuntime.Log.Warn("Cannot create widget '{0}' because parent widget is disposed or not initialized.", widgetName);
+                return;
+            }
+            
+            // 缓存记录检查，优先回调已存在的widget实例
+            if (TryCheckWidgetCache(widgetName, callback)) return;
+            AddWidgetCreateCallback(widgetName, callback);
+            
+            if (Activator.CreateInstance(widgetType) is not BaseWidget widget)
+            {
+                LiteRuntime.Log.Error("Failed to create widget: {0}", widgetName);
                 return;
             }
 
-            if (callback != null)
-            {
-                if (_widgetCreateCallbacks.TryGetValue(widgetName, out var callbacks))
-                {
-                    callbacks.Add(callback);
-                    return;
-                }
-                _widgetCreateCallbacks[widgetName] = new List<Action<BaseWidget>> { callback };
-            }
+            widget.Status = UIStatus.Creating;
+            _widgetCacheDict.Add(widgetName, widget);
+            _widgetCacheList.Add(widget);
             
             LiteRuntime.Asset.InstantiateAsync(address, parent, obj =>
             {
                 if (!obj)
                 {
                     LiteRuntime.Log.Error("Create widget failed, address: {0}", address);
+                    DisposeWidget(widgetName);
                     callback?.Invoke(null);
                     return;
                 }
-                
-                if (Status == UIStatus.Disposed || Status == UIStatus.None || !Go)
-                {
-                    LiteRuntime.Asset.UnloadAsset(obj);
-                    return;
-                }
 
-                if (Activator.CreateInstance(widgetType) is not BaseWidget widget)
+                if (widget.Status != UIStatus.Creating)
                 {
-                    LiteRuntime.Log.Error("Failed to create widget: {0}", widgetName);
+                    LiteRuntime.Log.Warn("Widget '{0}' is no longer in creating status, cannot set up widget with instantiated object.", widgetName);
+                    DisposeWidget(widgetName);
+                    LiteRuntime.Asset.UnloadAsset(obj);
                     return;
                 }
                 
@@ -305,10 +295,6 @@ namespace GamePlay
                 widget.SetWidgetGo(obj);
                 widget.SetCustomData(data);
                 widget.Create();
-                widget.Status = UIStatus.Showed;
-                
-                _widgetCacheDict.Add(widgetName, widget);
-                _widgetCacheList.Add(widget);
                 
                 if (_widgetCreateCallbacks.TryGetValue(widgetName, out var existingCallbacks))
                 {
@@ -321,8 +307,28 @@ namespace GamePlay
             });
         }
         
+        public UniTask<T> CreateWidgetAsync<T>(string widgetName, Transform parent, string address, ICustomUIData data = null) where T : BaseWidget
+        {
+            var tcs = new UniTaskCompletionSource<T>();
+            CreateWidget<T>(widgetName, parent, address, data, widget => tcs.TrySetResult(widget));
+            return tcs.Task;
+        }
+
+        public UniTask<BaseWidget> CreateWidgetAsync(string widgetName, Type widgetType, Transform parent, string address, ICustomUIData data = null)
+        {
+            var tcs = new UniTaskCompletionSource<BaseWidget>();
+            CreateWidget(widgetName, widgetType, parent, address, data, widget => tcs.TrySetResult(widget));
+            return tcs.Task;
+        }
+        
         public T ActiveWidget<T>(string widgetName, GameObject obj, ICustomUIData data = null) where T : BaseWidget
         {
+            if (Status == UIStatus.Disposed || Status == UIStatus.None || !Go)
+            {
+                LiteRuntime.Log.Warn("Cannot active widget '{0}' because parent widget is disposed or not initialized.", widgetName);
+                return null;
+            }
+            
             if (_widgetCacheDict.TryGetValue(widgetName, out var cacheWidget))
             {
                 return cacheWidget as T;
@@ -333,18 +339,25 @@ namespace GamePlay
                 LiteRuntime.Log.Error("Failed to create widget: {0}", widgetName);
                 return null;
             }
+            
+            _widgetCacheDict.Add(widgetName, widget);
+            _widgetCacheList.Add(widget);
+            
             widget.SetWidgetData(widgetName, this);
             widget.SetWidgetGo(obj);
             widget.SetCustomData(data);
             widget.Create();
             
-            _widgetCacheDict.Add(widgetName, widget);
-            _widgetCacheList.Add(widget);
             return widget as T;
         }
         
         public T CloneWidget<T>(string widgetName, GameObject temp, Transform parent, ICustomUIData data = null) where T : BaseWidget
         {
+            if (Status == UIStatus.Disposed || Status == UIStatus.None || !Go)
+            {
+                LiteRuntime.Log.Warn("Cannot clone widget '{0}' because parent widget is disposed or not initialized.", widgetName);
+                return null;
+            }
             if (_widgetCacheDict.TryGetValue(widgetName, out var cacheWidget))
             {
                 return cacheWidget as T;
@@ -358,43 +371,81 @@ namespace GamePlay
                 LiteRuntime.Log.Error("Failed to create widget: {0}", widgetName);
                 return null;
             }
-            widget.SetWidgetData(widgetName, this);
-            widget.SetWidgetGo(UnityEngine.Object.Instantiate(temp, parent));
-            widget.SetCustomData(data);
-            widget.Create();
             
             _widgetCacheDict.Add(widgetName, widget);
             _widgetCacheList.Add(widget);
+            
+            widget.SetWidgetData(widgetName, this);
+            widget.SetWidgetGo(Object.Instantiate(temp, parent));
+            widget.SetCustomData(data);
+            widget.IsClone = true;
+            widget.Create();
+            
             return widget as T;
         }
         
         public void DisposeWidget(string widgetName, Action callback = null)
         {
             if (!_widgetCacheDict.Remove(widgetName, out var widget)) return;
-            _widgetCacheList.Remove(widget);
-            _pendingDisposeWidgetQueue.Enqueue(widget);
+            if (widget.Status == UIStatus.Disposed) return;
+
+            _needRemoveWidget = true;
             widget.Dispose();
             callback?.Invoke();
         }
         
-        private void DisposeAllWidgets()
+        private void AddWidgetCreateCallback(string widgetName, Action<BaseWidget> callback)
         {
-            _widgetCacheList.Clear();
-            _widgetCreateCallbacks.Clear();
-            foreach (var (_, widget) in _widgetCacheDict)
+            if (callback == null) return;
+            
+            if (_widgetCreateCallbacks.TryGetValue(widgetName, out var callbacks))
             {
-                widget.Dispose();
-                _pendingDisposeWidgetQueue.Enqueue(widget);
+                callbacks.Add(callback);
             }
-            _widgetCacheDict.Clear();
+            else
+            {
+                _widgetCreateCallbacks[widgetName] = new List<Action<BaseWidget>> { callback };
+            }
         }
 
-        private void DisposePendingQueueImmediately()
+        private bool TryCheckWidgetCache(string widgetName, Action<BaseWidget> callback = null)
         {
-            while (_pendingDisposeWidgetQueue.Count > 0)
+            if (!_widgetCacheDict.TryGetValue(widgetName, out var cacheWidget)) return false;
+            
+            if (cacheWidget.Status is >= UIStatus.Created and < UIStatus.Disposed)
             {
-                var widget = _pendingDisposeWidgetQueue.Dequeue();
+                callback?.Invoke(cacheWidget);
+            }
+            else
+            {
+                AddWidgetCreateCallback(widgetName, callback);
+            }
+
+            return true;
+        }
+        
+        private void DisposeAllWidgets()
+        {
+            _needRemoveWidget = true;
+            _widgetCacheDict.Clear();
+            _widgetCreateCallbacks.Clear();
+            foreach (var widget in _widgetCacheList)
+            {
+                widget.Dispose();
+            }
+        }
+
+        private void DisposeWidgetImmediately(bool isAll)
+        {
+            if (!isAll && !_needRemoveWidget) return;
+            _needRemoveWidget = false;
+            
+            for (var i = _widgetCacheList.Count - 1; i >= 0; i--)
+            {
+                var widget = _widgetCacheList[i];
+                if (!isAll && widget.Status != UIStatus.Disposed) continue;
                 widget.DisposeImmediately();
+                _widgetCacheList.RemoveAt(i);
             }
         }
 
@@ -564,12 +615,6 @@ namespace GamePlay
                 return;
             }
             
-            if (_cacheAssets.TryGetValue(address, out var asset))
-            {
-                text.fontSharedMaterial = asset as Material;
-                return;
-            }
-            
             LoadAsset<Material>(address, material =>
             {
                 if (!material)
@@ -597,12 +642,6 @@ namespace GamePlay
             if (string.IsNullOrEmpty(address))
             {
                 LiteRuntime.Log.Warn("SetSprite failed: address is null or empty.");
-                return;
-            }
-            
-            if (_cacheAssets.TryGetValue(address, out var asset))
-            {
-                image.sprite = asset as Sprite;
                 return;
             }
 

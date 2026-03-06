@@ -1034,7 +1034,6 @@ namespace UnityEngine.UI
                 widget.SetWidgetData("loopItem" + index);
                 widget.SetWidgetGo(go);
                 widget.Create();
-                widget.Status = UIStatus.Showed;
                 
                 AdaptItemTransform(widget.Rect);
                 
