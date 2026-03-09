@@ -279,7 +279,7 @@ namespace GamePlay
                 {
                     LiteRuntime.Log.Error("Create widget failed, address: {0}", address);
                     DisposeWidget(widgetName);
-                    callback?.Invoke(null);
+                    TriggerWidgetCreateCallbacks(widgetName, null);
                     return;
                 }
 
@@ -287,6 +287,7 @@ namespace GamePlay
                 {
                     LiteRuntime.Log.Warn("Widget '{0}' is no longer in creating status, cannot set up widget with instantiated object.", widgetName);
                     DisposeWidget(widgetName);
+                    TriggerWidgetCreateCallbacks(widgetName, null);
                     LiteRuntime.Asset.UnloadAsset(obj);
                     return;
                 }
@@ -296,14 +297,7 @@ namespace GamePlay
                 widget.SetCustomData(data);
                 widget.Create();
                 
-                if (_widgetCreateCallbacks.TryGetValue(widgetName, out var existingCallbacks))
-                {
-                    foreach (var existingCallback in existingCallbacks)
-                    {
-                        existingCallback?.Invoke(widget);
-                    }
-                    _widgetCreateCallbacks.Remove(widgetName);
-                }
+                TriggerWidgetCreateCallbacks(widgetName, widget);
             });
         }
         
@@ -405,6 +399,16 @@ namespace GamePlay
             else
             {
                 _widgetCreateCallbacks[widgetName] = new List<Action<BaseWidget>> { callback };
+            }
+        }
+        
+        private void TriggerWidgetCreateCallbacks(string widgetName, BaseWidget widget)
+        {
+            if (!_widgetCreateCallbacks.Remove(widgetName, out var callbacks)) return;
+            
+            foreach (var callback in callbacks)
+            {
+                callback?.Invoke(widget);
             }
         }
 
